@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<uml:Model xmi:version="2.1" xmlns:xmi="http://schema.omg.org/spec/XMI/2.1" xmlns:uml="http://www.eclipse.org/uml2/3.0.0/UML" xmi:id="__0mpoDDvEfC6Z-QcX_6P-w" name="Stav">
+  <eAnnotations xmi:id="__0mpoTDvEfC6Z-QcX_6P-w" source="Objing">
+    <contents xmi:type="uml:Property" xmi:id="__0mpojDvEfC6Z-QcX_6P-w" name="exporterVersion">
+      <defaultValue xmi:type="uml:LiteralString" xmi:id="__0mpozDvEfC6Z-QcX_6P-w" value="3.0.0"/>
+    </contents>
+  </eAnnotations>
+  <packagedElement xmi:type="uml:StateMachine" xmi:id="__0mppDDvEfC6Z-QcX_6P-w" name="State Machine">
+    <region xmi:id="__0mppTDvEfC6Z-QcX_6P-w">
+      <subvertex xmi:type="uml:Pseudostate" xmi:id="__0mppjDvEfC6Z-QcX_6P-w" name="Initial State">
+        <ownedComment xmi:id="__0mppzDvEfC6Z-QcX_6P-w">
+          <body>start</body>
+        </ownedComment>
+      </subvertex>
+      <subvertex xmi:type="uml:State" xmi:id="__0mpqDDvEfC6Z-QcX_6P-w" name="Nenainstalovaný server">
+        <ownedComment xmi:id="__0mpqTDvEfC6Z-QcX_6P-w">
+          <body>Server je definován, ale nebyl nasazen.
+Stáhnutí image.
+Instalace v LinuxGSM.
+Server je nainstalován, neběží.
+Server se spouští.
+Server je spuštěn.
+Server se vypíná.
+Došlo k chybě.
+Zásah admina.
+Odstranění serveru.</body>
+        </ownedComment>
+        <region xmi:id="__0mpqjDvEfC6Z-QcX_6P-w" name="Region"/>
+      </subvertex>
+      <subvertex xmi:type="uml:State" xmi:id="__0mpqzDvEfC6Z-QcX_6P-w" name="Smazaný server">
+        <region xmi:id="__0mprDDvEfC6Z-QcX_6P-w" name="Region">
+          <subvertex xmi:type="uml:FinalState" xmi:id="__0mprTDvEfC6Z-QcX_6P-w" name="Final State">
+            <ownedComment xmi:id="__0mprjDvEfC6Z-QcX_6P-w">
+              <body>stop</body>
+            </ownedComment>
+          </subvertex>
+        </region>
+      </subvertex>
+      <subvertex xmi:type="uml:State" xmi:id="__0mprzDvEfC6Z-QcX_6P-w" name="Server se instaluje">
+        <region xmi:id="__0mpsDDvEfC6Z-QcX_6P-w" name="Region"/>
+      </subvertex>
+      <subvertex xmi:type="uml:State" xmi:id="__0mpsTDvEfC6Z-QcX_6P-w" name="Chyba">
+        <region xmi:id="__0mpsjDvEfC6Z-QcX_6P-w" name="Region"/>
+      </subvertex>
+      <subvertex xmi:type="uml:State" xmi:id="__0mpszDvEfC6Z-QcX_6P-w" name="Server zastaven">
+        <region xmi:id="__0mptDDvEfC6Z-QcX_6P-w" name="Region"/>
+      </subvertex>
+      <subvertex xmi:type="uml:State" xmi:id="__0mptTDvEfC6Z-QcX_6P-w" name="Server startuje">
+        <region xmi:id="__0mptjDvEfC6Z-QcX_6P-w" name="Region"/>
+      </subvertex>
+      <subvertex xmi:type="uml:State" xmi:id="__0mptzDvEfC6Z-QcX_6P-w" name="Server běží">
+        <region xmi:id="__0mpuDDvEfC6Z-QcX_6P-w" name="Region"/>
+      </subvertex>
+      <subvertex xmi:type="uml:State" xmi:id="__0mpuTDvEfC6Z-QcX_6P-w" name="Server zastavuje">
+        <region xmi:id="__0mpujDvEfC6Z-QcX_6P-w" name="Region"/>
+      </subvertex>
+      <transition xmi:id="__0mpuzDvEfC6Z-QcX_6P-w" name="Transition" source="__0mppjDvEfC6Z-QcX_6P-w" target="__0mpqDDvEfC6Z-QcX_6P-w"/>
+      <transition xmi:id="__0mpvDDvEfC6Z-QcX_6P-w" name="Transition" source="__0mpqDDvEfC6Z-QcX_6P-w" target="__0mprzDvEfC6Z-QcX_6P-w"/>
+      <transition xmi:id="__0mpvTDvEfC6Z-QcX_6P-w" name="Transition1" source="__0mpqDDvEfC6Z-QcX_6P-w" target="__0mpqzDvEfC6Z-QcX_6P-w"/>
+      <transition xmi:id="__0mpvjDvEfC6Z-QcX_6P-w" name="Transition" source="__0mpqzDvEfC6Z-QcX_6P-w" target="__0mprTDvEfC6Z-QcX_6P-w"/>
+      <transition xmi:id="__0mpvzDvEfC6Z-QcX_6P-w" name="Transition" source="__0mprzDvEfC6Z-QcX_6P-w" target="__0mpsTDvEfC6Z-QcX_6P-w"/>
+      <transition xmi:id="__0mpwDDvEfC6Z-QcX_6P-w" name="Transition1" source="__0mprzDvEfC6Z-QcX_6P-w" target="__0mpsTDvEfC6Z-QcX_6P-w"/>
+      <transition xmi:id="__0mpwTDvEfC6Z-QcX_6P-w" name="Transition2" source="__0mprzDvEfC6Z-QcX_6P-w" target="__0mpszDvEfC6Z-QcX_6P-w"/>
+      <transition xmi:id="__0mpwjDvEfC6Z-QcX_6P-w" name="Transition" source="__0mpsTDvEfC6Z-QcX_6P-w" target="__0mpqzDvEfC6Z-QcX_6P-w"/>
+      <transition xmi:id="__0mpwzDvEfC6Z-QcX_6P-w" name="Transition1" source="__0mpsTDvEfC6Z-QcX_6P-w" target="__0mpszDvEfC6Z-QcX_6P-w"/>
+      <transition xmi:id="__0mpxDDvEfC6Z-QcX_6P-w" name="Transition" source="__0mpszDvEfC6Z-QcX_6P-w" target="__0mprzDvEfC6Z-QcX_6P-w"/>
+      <transition xmi:id="__0mpxTDvEfC6Z-QcX_6P-w" name="Transition1" source="__0mpszDvEfC6Z-QcX_6P-w" target="__0mpqzDvEfC6Z-QcX_6P-w"/>
+      <transition xmi:id="__0mpxjDvEfC6Z-QcX_6P-w" name="Transition2" source="__0mpszDvEfC6Z-QcX_6P-w" target="__0mptTDvEfC6Z-QcX_6P-w"/>
+      <transition xmi:id="__0mpxzDvEfC6Z-QcX_6P-w" name="Transition" source="__0mptTDvEfC6Z-QcX_6P-w" target="__0mpszDvEfC6Z-QcX_6P-w"/>
+      <transition xmi:id="__0mpyDDvEfC6Z-QcX_6P-w" name="Transition1" source="__0mptTDvEfC6Z-QcX_6P-w" target="__0mptzDvEfC6Z-QcX_6P-w"/>
+      <transition xmi:id="__0mpyTDvEfC6Z-QcX_6P-w" name="Transition2" source="__0mptTDvEfC6Z-QcX_6P-w" target="__0mpsTDvEfC6Z-QcX_6P-w"/>
+      <transition xmi:id="__0mpyjDvEfC6Z-QcX_6P-w" name="Transition" source="__0mptzDvEfC6Z-QcX_6P-w" target="__0mpuTDvEfC6Z-QcX_6P-w"/>
+      <transition xmi:id="__0mpyzDvEfC6Z-QcX_6P-w" name="Transition1" source="__0mptzDvEfC6Z-QcX_6P-w" target="__0mpsTDvEfC6Z-QcX_6P-w"/>
+      <transition xmi:id="__0mpzDDvEfC6Z-QcX_6P-w" name="Transition" source="__0mpuTDvEfC6Z-QcX_6P-w" target="__0mpsTDvEfC6Z-QcX_6P-w"/>
+      <transition xmi:id="__0mpzTDvEfC6Z-QcX_6P-w" name="Transition1" source="__0mpuTDvEfC6Z-QcX_6P-w" target="__0mpszDvEfC6Z-QcX_6P-w"/>
+    </region>
+  </packagedElement>
+</uml:Model>

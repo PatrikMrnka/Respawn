@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.1" xmlns:xmi="http://schema.omg.org/spec/XMI/2.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:default="http:///schemas/default/_E69fcDDwEfC6Z-QcX_6P-w/0" xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore" xmlns:uml="http://www.eclipse.org/uml2/3.0.0/UML" xsi:schemaLocation="http:///schemas/default/_E69fcDDwEfC6Z-QcX_6P-w/0 default.profile.xmi#_E6-tlzDwEfC6Z-QcX_6P-w">
+  <uml:Model xmi:id="_E67DMDDwEfC6Z-QcX_6P-w" name="Nasazení">
+    <eAnnotations xmi:id="_E67DMTDwEfC6Z-QcX_6P-w" source="Objing">
+      <contents xmi:type="uml:Property" xmi:id="_E67DMjDwEfC6Z-QcX_6P-w" name="exporterVersion">
+        <defaultValue xmi:type="uml:LiteralString" xmi:id="_E67DMzDwEfC6Z-QcX_6P-w" value="3.0.0"/>
+      </contents>
+    </eAnnotations>
+    <packagedElement xmi:type="uml:Package" xmi:id="_E67DNDDwEfC6Z-QcX_6P-w" name="Hostitel" clientDependency="_E67DNTDwEfC6Z-QcX_6P-w">
+      <packagedElement xmi:type="uml:Usage" xmi:id="_E67DNTDwEfC6Z-QcX_6P-w" supplier="_E67DVTDwEfC6Z-QcX_6P-w" client="_E67DNDDwEfC6Z-QcX_6P-w"/>
+      <packagedElement xmi:type="uml:Package" xmi:id="_E67DNjDwEfC6Z-QcX_6P-w" name="Docker">
+        <packagedElement xmi:type="uml:Node" xmi:id="_E67DNzDwEfC6Z-QcX_6P-w" name="Databázový kontejner"/>
+        <packagedElement xmi:type="uml:Node" xmi:id="_E67DODDwEfC6Z-QcX_6P-w" name="API / APP kontejner">
+          <ownedAttribute xmi:id="_E67DOTDwEfC6Z-QcX_6P-w" visibility="public" type="_E67DNzDwEfC6Z-QcX_6P-w" isUnique="false" association="_E67DPDDwEfC6Z-QcX_6P-w"/>
+          <ownedAttribute xmi:id="_E67DOjDwEfC6Z-QcX_6P-w" visibility="public" type="_E67DRjDwEfC6Z-QcX_6P-w" isUnique="false" association="_E67DPjDwEfC6Z-QcX_6P-w"/>
+          <ownedAttribute xmi:id="_E67DOzDwEfC6Z-QcX_6P-w" visibility="public" type="_E67DRzDwEfC6Z-QcX_6P-w" isUnique="false" association="_E67DQDDwEfC6Z-QcX_6P-w"/>
+        </packagedElement>
+        <packagedElement xmi:type="uml:Association" xmi:id="_E67DPDDwEfC6Z-QcX_6P-w" memberEnd="_E67DOTDwEfC6Z-QcX_6P-w _E67DPTDwEfC6Z-QcX_6P-w">
+          <ownedEnd xmi:id="_E67DPTDwEfC6Z-QcX_6P-w" visibility="public" type="_E67DODDwEfC6Z-QcX_6P-w" isUnique="false" association="_E67DPDDwEfC6Z-QcX_6P-w"/>
+        </packagedElement>
+        <packagedElement xmi:type="uml:Association" xmi:id="_E67DPjDwEfC6Z-QcX_6P-w" memberEnd="_E67DOjDwEfC6Z-QcX_6P-w _E67DPzDwEfC6Z-QcX_6P-w">
+          <ownedEnd xmi:id="_E67DPzDwEfC6Z-QcX_6P-w" visibility="public" type="_E67DODDwEfC6Z-QcX_6P-w" isUnique="false" association="_E67DPjDwEfC6Z-QcX_6P-w"/>
+        </packagedElement>
+        <packagedElement xmi:type="uml:Association" xmi:id="_E67DQDDwEfC6Z-QcX_6P-w" memberEnd="_E67DOzDwEfC6Z-QcX_6P-w _E67DQTDwEfC6Z-QcX_6P-w">
+          <ownedEnd xmi:id="_E67DQTDwEfC6Z-QcX_6P-w" visibility="public" type="_E67DODDwEfC6Z-QcX_6P-w" isUnique="false" association="_E67DQDDwEfC6Z-QcX_6P-w"/>
+        </packagedElement>
+        <packagedElement xmi:type="uml:Artifact" xmi:id="_E67DQjDwEfC6Z-QcX_6P-w" name=".NET runtime" clientDependency="_E67DQzDwEfC6Z-QcX_6P-w"/>
+        <packagedElement xmi:type="uml:Usage" xmi:id="_E67DQzDwEfC6Z-QcX_6P-w" supplier="_E67DODDwEfC6Z-QcX_6P-w" client="_E67DQjDwEfC6Z-QcX_6P-w"/>
+        <packagedElement xmi:type="uml:Artifact" xmi:id="_E67DRDDwEfC6Z-QcX_6P-w" name="API.dll" clientDependency="_E67DRTDwEfC6Z-QcX_6P-w"/>
+        <packagedElement xmi:type="uml:Usage" xmi:id="_E67DRTDwEfC6Z-QcX_6P-w" supplier="_E67DODDwEfC6Z-QcX_6P-w" client="_E67DRDDwEfC6Z-QcX_6P-w"/>
+        <packagedElement xmi:type="uml:Node" xmi:id="_E67DRjDwEfC6Z-QcX_6P-w" name="Herní Server CS 1.6(KONTEJNER)"/>
+        <packagedElement xmi:type="uml:Node" xmi:id="_E67DRzDwEfC6Z-QcX_6P-w" name="Herní Server Minecraft (KONTEJNER)"/>
+        <packagedElement xmi:type="uml:Artifact" xmi:id="_E67DSDDwEfC6Z-QcX_6P-w" name="LinuxGSM" clientDependency="_E67DSTDwEfC6Z-QcX_6P-w _E67DSjDwEfC6Z-QcX_6P-w"/>
+        <packagedElement xmi:type="uml:Usage" xmi:id="_E67DSTDwEfC6Z-QcX_6P-w" supplier="_E67DRjDwEfC6Z-QcX_6P-w" client="_E67DSDDwEfC6Z-QcX_6P-w"/>
+        <packagedElement xmi:type="uml:Usage" xmi:id="_E67DSjDwEfC6Z-QcX_6P-w" supplier="_E67DRzDwEfC6Z-QcX_6P-w" client="_E67DSDDwEfC6Z-QcX_6P-w"/>
+        <packagedElement xmi:type="uml:Artifact" xmi:id="_E67DSzDwEfC6Z-QcX_6P-w" name="CS 1.6 Server" clientDependency="_E67DTTDwEfC6Z-QcX_6P-w">
+          <ownedComment xmi:id="_E67DTDDwEfC6Z-QcX_6P-w">
+            <body>&lt;Enter note text here></body>
+          </ownedComment>
+        </packagedElement>
+        <packagedElement xmi:type="uml:Usage" xmi:id="_E67DTTDwEfC6Z-QcX_6P-w" supplier="_E67DRjDwEfC6Z-QcX_6P-w" client="_E67DSzDwEfC6Z-QcX_6P-w"/>
+        <packagedElement xmi:type="uml:Artifact" xmi:id="_E67DTjDwEfC6Z-QcX_6P-w" name="Minecraft Server" clientDependency="_E67DTzDwEfC6Z-QcX_6P-w"/>
+        <packagedElement xmi:type="uml:Usage" xmi:id="_E67DTzDwEfC6Z-QcX_6P-w" supplier="_E67DRzDwEfC6Z-QcX_6P-w" client="_E67DTjDwEfC6Z-QcX_6P-w"/>
+        <packagedElement xmi:type="uml:Association" xmi:id="_E67DUDDwEfC6Z-QcX_6P-w" memberEnd="_E67DVjDwEfC6Z-QcX_6P-w _E67DUTDwEfC6Z-QcX_6P-w">
+          <ownedEnd xmi:id="_E67DUTDwEfC6Z-QcX_6P-w" visibility="public" type="_E67DVTDwEfC6Z-QcX_6P-w" isUnique="false" association="_E67DUDDwEfC6Z-QcX_6P-w"/>
+        </packagedElement>
+        <packagedElement xmi:type="uml:Association" xmi:id="_E67DUjDwEfC6Z-QcX_6P-w" memberEnd="_E67DVzDwEfC6Z-QcX_6P-w _E67DUzDwEfC6Z-QcX_6P-w">
+          <ownedEnd xmi:id="_E67DUzDwEfC6Z-QcX_6P-w" visibility="public" type="_E67DVTDwEfC6Z-QcX_6P-w" isUnique="false" association="_E67DUjDwEfC6Z-QcX_6P-w"/>
+        </packagedElement>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Artifact" xmi:id="_E67DVDDwEfC6Z-QcX_6P-w" name="OS: Linux"/>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Node" xmi:id="_E67DVTDwEfC6Z-QcX_6P-w" name="Síťový SWITCH" clientDependency="_E67DWTDwEfC6Z-QcX_6P-w">
+      <ownedAttribute xmi:id="_E67DVjDwEfC6Z-QcX_6P-w" visibility="public" type="_E67DRjDwEfC6Z-QcX_6P-w" isUnique="false" association="_E67DUDDwEfC6Z-QcX_6P-w"/>
+      <ownedAttribute xmi:id="_E67DVzDwEfC6Z-QcX_6P-w" visibility="public" type="_E67DRzDwEfC6Z-QcX_6P-w" isUnique="false" association="_E67DUjDwEfC6Z-QcX_6P-w"/>
+      <ownedAttribute xmi:type="uml:Port" xmi:id="_E67DWDDwEfC6Z-QcX_6P-w" name="Port"/>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Dependency" xmi:id="_E67DWTDwEfC6Z-QcX_6P-w" name="" supplier="_E67DWjDwEfC6Z-QcX_6P-w" client="_E67DVTDwEfC6Z-QcX_6P-w"/>
+    <packagedElement xmi:type="uml:Package" xmi:id="_E67DWjDwEfC6Z-QcX_6P-w" name="Uživatelské počítače">
+      <packagedElement xmi:type="uml:Node" xmi:id="_E67DWzDwEfC6Z-QcX_6P-w" name="Webový prohlížeč">
+        <ownedAttribute xmi:id="_E67DXDDwEfC6Z-QcX_6P-w" name="síťový SWITCH" visibility="public" type="_E67DVTDwEfC6Z-QcX_6P-w" isUnique="false" association="_E67DYjDwEfC6Z-QcX_6P-w"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Artifact" xmi:id="_E67DXTDwEfC6Z-QcX_6P-w" name="Vue.js frontend" clientDependency="_E67DXjDwEfC6Z-QcX_6P-w"/>
+      <packagedElement xmi:type="uml:Usage" xmi:id="_E67DXjDwEfC6Z-QcX_6P-w" supplier="_E67DWzDwEfC6Z-QcX_6P-w" client="_E67DXTDwEfC6Z-QcX_6P-w"/>
+      <packagedElement xmi:type="uml:Node" xmi:id="_E67DXzDwEfC6Z-QcX_6P-w" name="Herní klient">
+        <ownedAttribute xmi:id="_E67DYDDwEfC6Z-QcX_6P-w" visibility="public" type="_E67DVTDwEfC6Z-QcX_6P-w" isUnique="false" association="_E67DZDDwEfC6Z-QcX_6P-w"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Artifact" xmi:id="_E67DYTDwEfC6Z-QcX_6P-w" name="OS: Windows"/>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Association" xmi:id="_E67DYjDwEfC6Z-QcX_6P-w" memberEnd="_E67DXDDwEfC6Z-QcX_6P-w _E67DYzDwEfC6Z-QcX_6P-w">
+      <ownedEnd xmi:id="_E67DYzDwEfC6Z-QcX_6P-w" visibility="public" type="_E67DWzDwEfC6Z-QcX_6P-w" isUnique="false" association="_E67DYjDwEfC6Z-QcX_6P-w"/>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Association" xmi:id="_E67DZDDwEfC6Z-QcX_6P-w" memberEnd="_E67DYDDwEfC6Z-QcX_6P-w _E67DZTDwEfC6Z-QcX_6P-w">
+      <ownedEnd xmi:id="_E67DZTDwEfC6Z-QcX_6P-w" name="herní klient" visibility="public" type="_E67DXzDwEfC6Z-QcX_6P-w" isUnique="false" association="_E67DZDDwEfC6Z-QcX_6P-w"/>
+    </packagedElement>
+    <profileApplication xmi:id="_E7GpYDDwEfC6Z-QcX_6P-w">
+      <eAnnotations xmi:id="_E7GpYTDwEfC6Z-QcX_6P-w" source="http://www.eclipse.org/uml2/2.0.0/UML">
+        <references xmi:type="ecore:EPackage" href="default.profile.xmi#_E6-tlzDwEfC6Z-QcX_6P-w"/>
+      </eAnnotations>
+      <appliedProfile href="default.profile.xmi#_E6-tkDDwEfC6Z-QcX_6P-w"/>
+    </profileApplication>
+  </uml:Model>
+  <default:system xmi:id="_E7HQcDDwEfC6Z-QcX_6P-w" base_Package="_E67DNjDwEfC6Z-QcX_6P-w"/>
+</xmi:XMI>
