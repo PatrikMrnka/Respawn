@@ -1,0 +1,21 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: lanparty-database
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_heslo_zmente_ho                                 
+      MYSQL_DATABASE: lanpartydb
+      MYSQL_USER: lanparty_user
+      MYSQL_PASSWORD: uzivatelske_heslo_zmente_ho
+    ports:
+      - "3306:3306" # Mapování portu MySQL na localhost
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck: # Volitelné, ale užitečné
+        test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-uroot", "-proot_heslo_zmente_ho"]
+        timeout: 20s
+        retries: 10
+
+volumes:
+  mysql_data:
