@@ -6,14 +6,18 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 
-// Vuetify
+// Vuetify - UI framework
 import 'vuetify/styles';
 import { createVuetify, type ThemeDefinition } from 'vuetify';
 import * as components from 'vuetify/components';
 import * as directives from 'vuetify/directives';
 import { aliases, mdi } from 'vuetify/iconsets/mdi-svg';
 
-import './assets/futuristic.css';  // custom futuristic theme
+// SweetAlert2 - pop up boxes
+import 'sweetalert2/dist/sweetalert2.min.css';
+
+// custom futuristic theme
+import './assets/futuristic.css';
 
 // Define custom dark theme
 const futuristicDarkTheme: ThemeDefinition = {
@@ -39,7 +43,7 @@ const futuristicDarkTheme: ThemeDefinition = {
   variables: {
     'border-opacity': 0.3,
     'theme-on-background': '#121826',
-    'theme-on-surface': '#1A2033',
+    'theme-on-surface': '#E0E0E0',
   }
 };
 

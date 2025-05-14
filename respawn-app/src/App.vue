@@ -4,10 +4,16 @@
       <v-app-bar-nav-icon @click.stop="drawer = !drawer" class="text-primary"></v-app-bar-nav-icon>
       <v-toolbar-title class="font-oxanium text-primary">Respawn LAN Organizer</v-toolbar-title>
       <v-spacer></v-spacer>
-      <v-btn icon class="text-primary">
-        <v-icon>{{ mdiAccountCircle }}</v-icon>
+
+      <v-btn class="futuristic-btn mr-2" variant="outlined" @click="handleLogin">
+        <v-icon left class="mr-1">{{ mdiLogin }}</v-icon>
+        Přihlásit se
       </v-btn>
-    </v-app-bar>
+      <v-btn class="futuristic-btn-filled" color="primary" @click="handleRegister">
+         <v-icon left class="mr-1">{{ mdiAccountPlus }}</v-icon>
+        Registrovat
+      </v-btn>
+      </v-app-bar>
 
     <v-navigation-drawer
       v-model="drawer"
@@ -41,79 +47,11 @@
           <v-col cols="12">
             <h1 class="font-exo2 page-title text-primary mb-6">Vítejte!</h1>
             <p class="font-inter text-text-secondary">
-              Vyberte si jednu z možností v navigačním menu.
+              Vyberte si jednu z možností v navigačním menu, nebo se přihlaste/zaregistrujte.
             </p>
           </v-col>
         </v-row>
-         <v-row class="mt-8" v-if="!$route.matched.length">
-          <v-col cols="12" md="6" lg="4">
-            <v-card class="futuristic-card" shaped elevation="8">
-              <div class="hexagon-decoration top-left"></div>
-              <div class="hexagon-decoration bottom-right"></div>
-              <v-card-title class="font-oxanium card-title">
-                <v-icon left class="mr-2">{{ mdiServer }}</v-icon>
-                Stav Serverů
-              </v-card-title>
-              <v-card-text class="font-inter card-text">
-                <p>CS 1.6 Server: <span class="text-success">Online</span> - Hráčů: 12/16</p>
-                <p>Minecraft Server: <span class="text-warning">Restartuje se</span></p>
-                <p class="font-roboto-mono mt-2">Poslední ping: 15ms</p>
-              </v-card-text>
-              <v-card-actions>
-                <v-spacer></v-spacer>
-                <v-btn class="futuristic-btn" variant="outlined">
-                  <v-icon left class="mr-1">{{ mdiCog }}</v-icon>
-                  Spravovat
-                </v-btn>
-              </v-card-actions>
-            </v-card>
-          </v-col>
-
-          <v-col cols="12" md="6" lg="4">
-            <v-card class="futuristic-card" shaped elevation="8">
-              <v-card-title class="font-oxanium card-title">
-                <v-icon left class="mr-2">{{ mdiPoll }}</v-icon>
-                Aktivní Ankety
-              </v-card-title>
-              <v-card-text class="font-inter card-text">
-                <p>Kterou mapu dnes večer? (Zbývá: 2h 15m)</p>
-                <ul class="pl-4">
-                  <li>Dust 2 (Hlasů: 8)</li>
-                  <li>Inferno (Hlasů: 5)</li>
-                </ul>
-                 <p class="font-roboto-mono mt-2">ID Ankety: #A4F8C</p>
-              </v-card-text>
-              <v-card-actions>
-                <v-spacer></v-spacer>
-                <v-btn class="futuristic-btn" variant="tonal" color="primary">
-                  Hlasovat
-                </v-btn>
-              </v-card-actions>
-            </v-card>
-          </v-col>
-
-          <v-col cols="12" md="6" lg="4">
-            <v-card class="futuristic-card" shaped elevation="8">
-               <div class="hexagon-decoration top-right"></div>
-              <div class="hexagon-decoration bottom-left"></div>
-              <v-card-title class="font-oxanium card-title">
-                <v-icon left class="mr-2">{{ mdiChartBar }}</v-icon>
-                Moje Statistiky
-              </v-card-title>
-              <v-card-text class="font-inter card-text">
-                <p>Odehráno hodin: <strong>42</strong></p>
-                <p>Výher/Proher: <strong>25/17</strong></p>
-                <p class="font-roboto-mono mt-2">K/D Ratio: 1.47</p>
-              </v-card-text>
-               <v-card-actions>
-                <v-spacer></v-spacer>
-                <v-btn class="futuristic-btn" variant="text" color="secondary">
-                  Detail
-                </v-btn>
-              </v-card-actions>
-            </v-card>
-          </v-col>
-        </v-row>
+         
       </v-container>
     </v-main>
 
@@ -124,8 +62,11 @@
 </template>
 
 <script lang="ts" setup>
-import { ref } from 'vue';
-import { useRouter, useRoute } from 'vue-router'; // Import Vue Router composables
+import { ref, computed } from 'vue'; // Added computed for userInitials example
+import { useRouter, useRoute } from 'vue-router';
+import { displayLoginModal, displayRegisterModal } from '@/services/authService'; // Import auth service
+// TODO: Import Pinia store for auth state if you create one
+// import { useAuthStore } from '@/stores/authStore';
 
 // MDI SVG Icons import
 import { 
@@ -137,30 +78,73 @@ import {
   mdiViewDashboard, 
   mdiCogs, 
   mdiLogout,
-  mdiInformationOutline // Added for About page
+  mdiInformationOutline,
+  mdiLogin, // Icon for Login
+  mdiAccountPlus, // Icon for Register
+  mdiAccountCog // Icon for Profile in user menu
 } from '@mdi/js';
 
 const drawer = ref(false);
 const router = useRouter();
 const route = useRoute();
+// const authStore = useAuthStore(); // Example if using Pinia
+
+// Example: Replace with actual logic from authStore
+const isUserLoggedIn = ref(false); // Reactive ref for login state
+const userNickname = ref(''); // Reactive ref for user nickname
+
+// Example for user initials, replace with actual data
+const userInitials = computed(() => {
+  return userNickname.value ? userNickname.value.substring(0, 2).toUpperCase() : '??';
+});
+
 
 const menuItems = ref([
   { title: 'Hlavní Panel', icon: mdiViewDashboard, path: '/' },
   { title: 'O Aplikaci', icon: mdiInformationOutline, path: '/about' },
-  { title: 'Servery', icon: mdiServer, path: '/servers' }, // Example path
-  { title: 'Ankety', icon: mdiPoll, path: '/polls' }, // Example path
-  { title: 'Statistiky', icon: mdiChartBar, path: '/stats' }, // Example path
-  { title: 'Nastavení', icon: mdiCogs, path: '/settings' }, // Example path
-  { title: 'Odhlásit se', icon: mdiLogout, path: '/logout' }, // Example path
+  { title: 'Servery', icon: mdiServer, path: '/servers' },
+  { title: 'Ankety', icon: mdiPoll, path: '/polls' },
+  { title: 'Statistiky', icon: mdiChartBar, path: '/stats' },
+  { title: 'Nastavení', icon: mdiCogs, path: '/settings' },
+  // Conditional menu item for logout - will be shown/hidden based on login state
+  // { title: 'Odhlásit se', icon: mdiLogout, path: '/logout', requiresAuth: true },
 ]);
 
 const navigateTo = (path: string) => {
   router.push(path);
-  drawer.value = false; // Close drawer on navigation
+  drawer.value = false;
 };
 
 const isActiveRoute = (path: string) => {
   return route.path === path;
+};
+
+const handleLogin = async () => {
+  const result = await displayLoginModal();
+  if (result && result.success) {
+    // TODO: Update authStore, set isUserLoggedIn = true, userNickname.value = result.nickname
+    // For now, simulate login
+    isUserLoggedIn.value = true;
+    userNickname.value = result.nickname || 'Hráč';
+    console.log("Přihlášen jako:", userNickname.value);
+    // Potentially add a logout item to menuItems or handle it differently
+  }
+};
+
+const handleRegister = async () => {
+  const result = await displayRegisterModal();
+   if (result && result.success) {
+    // TODO: Update authStore, potentially auto-login or show success message
+    console.log("Registrován:", result.nickname);
+  }
+};
+
+const handleLogout = () => {
+  // TODO: Implement logout logic (clear token, update authStore)
+  isUserLoggedIn.value = false;
+  userNickname.value = '';
+  router.push('/'); // Redirect to home or login page
+  console.log("Uživatel odhlášen");
 };
 
 </script>
@@ -176,17 +160,15 @@ const isActiveRoute = (path: string) => {
 }
 
 .card-title {
-  color: white;
+  color: var(--v-theme-primary);
   border-bottom: 1px solid rgba(var(--v-theme-border-color-rgb), var(--v-border-opacity));
   padding-bottom: 0.5em;
   font-size: 1.25rem; /* Adjusted for consistency */
-  
-  text-shadow: 0 0 8px var(--v-theme-glow-color);
 }
 
 .card-text p {
   margin-bottom: 0.5em;
-  color: white;
+  color: var(--v-theme-text-primary);
   font-size: 0.95rem;
 }
 .card-text p .text-success {
@@ -227,8 +209,8 @@ const isActiveRoute = (path: string) => {
 .hexagon-decoration {
   position: absolute;
   width: 50px; /* Adjusted size */
-  height: 28.87px; /* width * sqrt(3)/2 / 2 for half hexagon if needed, or full height */
-  background-color: rgba(var(--v-theme-primary-rgb), 0.05); /* Very subtle */
+  height: 28.87px; 
+  background-color: rgba(var(--v-theme-primary-rgb), 0.05); 
   clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
   opacity: 0.5;
   pointer-events: none;
@@ -252,7 +234,7 @@ const isActiveRoute = (path: string) => {
   box-shadow: 0 0 10px 0px var(--v-theme-glow-color);
 }
 
-.futuristic-btn[variant="tonal"] { /* Specific style for tonal buttons if needed */
+.futuristic-btn[variant="tonal"] {
     background-color: rgba(var(--v-theme-primary-rgb), 0.15) !important;
     color: var(--v-theme-primary) !important;
 }
@@ -282,7 +264,7 @@ const isActiveRoute = (path: string) => {
 
 .menu-item {
   font-family: 'Exo 2', sans-serif;
-  color: white !important; 
+  color: var(--v-theme-text-primary) !important; 
   border-left: 3px solid transparent;
   transition: all 0.2s ease-in-out;
 }
@@ -292,23 +274,35 @@ const isActiveRoute = (path: string) => {
   border-left-color: var(--v-theme-primary);
 }
 .menu-item.v-list-item--active {
-  color: white !important;
+  color: var(--v-theme-primary) !important;
   border-left-color: var(--v-theme-primary) !important;
   background-color: rgba(var(--v-theme-primary-rgb), 0.12) !important;
 }
 .menu-item .v-icon {
-  /* Changed icon color to --v-theme-text-primary for a whiter appearance */
-  color: white !important; 
+  color: var(--v-theme-text-primary) !important; 
   transition: color 0.2s ease-in-out;
 }
 .menu-item:hover .v-icon, .menu-item.v-list-item--active .v-icon {
-   color: white !important;
+   color: var(--v-theme-primary) !important;
 }
 
 .futuristic-footer {
   border-top: 1px solid rgba(var(--v-theme-primary-rgb), 0.2) !important;
   font-size: 0.875rem;
 }
+
+/* User menu dropdown styles */
+.futuristic-menu .v-list-item-title {
+  font-size: 0.95rem !important;
+}
+.futuristic-menu .v-list-item:hover {
+  background-color: rgba(var(--v-theme-primary-rgb), 0.1) !important;
+}
+.futuristic-menu .v-list-item:hover .v-list-item-title,
+.futuristic-menu .v-list-item:hover .v-icon {
+  color: var(--v-theme-primary) !important;
+}
+
 
 /* Transition for router-view */
 .fade-transform-leave-active,
