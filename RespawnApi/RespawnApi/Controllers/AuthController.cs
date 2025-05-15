@@ -57,7 +57,7 @@ namespace RespawnApi.Controllers
             {
                 UserName = registerDto.Nickname, // Nickname bude UserName
                 Email = registerDto.Email,
-                EmailConfirmed = true // Prozatím potvrzujeme email automaticky
+                EmailConfirmed = true
             };
 
             var result = await _userManager.CreateAsync(newUser, registerDto.Password);
@@ -82,8 +82,6 @@ namespace RespawnApi.Controllers
 
             _logger.LogInformation($"Uživatel {newUser.UserName} byl úspěšně zaregistrován.");
 
-            // Možnost automatického přihlášení po registraci a vrácení tokenu
-            // Nebo jen zpráva o úspěchu a uživatel se musí přihlásit zvlášť
             var tokenResponse = await _tokenService.GenerateTokenAsync(newUser, userProfile);
             tokenResponse.Message = "Registrace byla úspěšná.";
             return Ok(tokenResponse);

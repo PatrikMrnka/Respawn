@@ -1,6 +1,4 @@
-/* assets/futuristic-theme.css */
-
-/* ... (stávající importy fontů a globální styly) ... */
+/* Prozatim nacitano z webu - pote stahnu primo do projektu! */
 @import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@300;400;500;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Exo+2:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&display=swap');
@@ -18,7 +16,6 @@
   --v-theme-warning-rgb: 255, 193, 7;
   --v-theme-text-secondary-rgb: 160, 160, 192;
 
-
   --font-family-base: 'Inter', sans-serif;
   --font-family-headings-oxanium: 'Oxanium', cursive;
   --font-family-headings-exo2: 'Exo 2', sans-serif;
@@ -32,13 +29,25 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-.font-oxanium { font-family: var(--font-family-headings-oxanium) !important; }
-.font-exo2 { font-family: var(--font-family-headings-exo2) !important; }
-.font-inter { font-family: var(--font-family-base) !important; }
-.font-roboto-mono { font-family: var(--font-family-monospace) !important; }
+.font-oxanium {
+  font-family: var(--font-family-headings-oxanium) !important;
+}
+.font-exo2 {
+  font-family: var(--font-family-headings-exo2) !important;
+}
+.font-inter {
+  font-family: var(--font-family-base) !important;
+}
+.font-roboto-mono {
+  font-family: var(--font-family-monospace) !important;
+}
 
-.v-application .text-h1, .v-application .text-h2, .v-application .text-h3,
-.v-application .text-h4, .v-application .text-h5, .v-application .text-h6 {
+.v-application .text-h1,
+.v-application .text-h2,
+.v-application .text-h3,
+.v-application .text-h4,
+.v-application .text-h5,
+.v-application .text-h6 {
   font-family: var(--font-family-headings-exo2) !important;
 }
 
@@ -49,27 +58,45 @@
 }
 
 .futuristic-app.v-application::before {
-  content: "";
+  content: '';
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
   z-index: 0;
-  
+
   --hex-size: 60px;
   --hex-gap: 4px;
   --hex-color: rgba(var(--v-theme-primary-rgb), 0.025);
 
   background-image:
-    linear-gradient(30deg, transparent calc(var(--hex-size) / 2), var(--hex-color) calc(var(--hex-size) / 2), var(--hex-color) calc(var(--hex-size) - var(--hex-gap)), transparent calc(var(--hex-size) - var(--hex-gap))),
-    linear-gradient(-30deg, transparent calc(var(--hex-size) / 2), var(--hex-color) calc(var(--hex-size) / 2), var(--hex-color) calc(var(--hex-size) - var(--hex-gap)), transparent calc(var(--hex-size) - var(--hex-gap))),
-    linear-gradient(90deg, transparent calc(var(--hex-size) / 2 * 0.866), var(--hex-color) calc(var(--hex-size) / 2 * 0.866), var(--hex-color) calc(var(--hex-size) - var(--hex-gap) - (var(--hex-size) / 2 * 0.866)), transparent calc(var(--hex-size) - var(--hex-gap) - (var(--hex-size) / 2 * 0.866)));
-  background-size: 
+    linear-gradient(
+      30deg,
+      transparent calc(var(--hex-size) / 2),
+      var(--hex-color) calc(var(--hex-size) / 2),
+      var(--hex-color) calc(var(--hex-size) - var(--hex-gap)),
+      transparent calc(var(--hex-size) - var(--hex-gap))
+    ),
+    linear-gradient(
+      -30deg,
+      transparent calc(var(--hex-size) / 2),
+      var(--hex-color) calc(var(--hex-size) / 2),
+      var(--hex-color) calc(var(--hex-size) - var(--hex-gap)),
+      transparent calc(var(--hex-size) - var(--hex-gap))
+    ),
+    linear-gradient(
+      90deg,
+      transparent calc(var(--hex-size) / 2 * 0.866),
+      var(--hex-color) calc(var(--hex-size) / 2 * 0.866),
+      var(--hex-color) calc(var(--hex-size) - var(--hex-gap) - (var(--hex-size) / 2 * 0.866)),
+      transparent calc(var(--hex-size) - var(--hex-gap) - (var(--hex-size) / 2 * 0.866))
+    );
+  background-size:
     calc(var(--hex-size) * 1.732) var(--hex-size),
     calc(var(--hex-size) * 1.732) var(--hex-size),
     calc(var(--hex-size) * 1.732) var(--hex-size);
-  background-position: 
+  background-position:
     0 0,
     calc(var(--hex-size) * 0.866) calc(var(--hex-size) / 2),
     0 0;
@@ -77,22 +104,47 @@
   pointer-events: none;
 }
 
-.v-main, .v-app-bar, .v-navigation-drawer, .v-footer {
+.v-main,
+.v-app-bar,
+.v-navigation-drawer,
+.v-footer {
   position: relative;
   z-index: 1;
   background-color: transparent !important;
 }
-.v-app-bar, .v-navigation-drawer, .v-footer, .v-card {
-   background-color: var(--v-theme-surface) !important;
+.v-app-bar,
+.v-navigation-drawer,
+.v-footer,
+.v-card {
+  background-color: var(--v-theme-surface) !important;
 }
 
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: rgba(var(--v-theme-primary-rgb), 0.08); border-radius: 5px; }
-::-webkit-scrollbar-thumb { background: rgba(var(--v-theme-primary-rgb), 0.5); border-radius: 5px; border: 2px solid transparent; background-clip: content-box; }
-::-webkit-scrollbar-thumb:hover { background: rgba(var(--v-theme-primary-rgb), 0.7); }
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(var(--v-theme-primary-rgb), 0.08);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(var(--v-theme-primary-rgb), 0.5);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--v-theme-primary-rgb), 0.7);
+}
 
-.v-card { border-radius: 10px !important; }
-.v-btn { border-radius: 8px !important; text-transform: none !important; letter-spacing: 0.5px !important; }
+.v-card {
+  border-radius: 10px !important;
+}
+.v-btn {
+  border-radius: 8px !important;
+  text-transform: none !important;
+  letter-spacing: 0.5px !important;
+}
 
 /* SweetAlert2 Custom Futuristic Styles */
 .futuristic-swal-popup {
@@ -180,10 +232,10 @@
 }
 
 .futuristic-swal-validation-message {
-    background-color: rgba(var(--v-theme-error-rgb), 0.1) !important;
-    color: var(--v-theme-error) !important;
-    border: 1px solid rgba(var(--v-theme-error-rgb), 0.5) !important;
-    border-radius: 6px !important;
-    padding: 0.75em !important;
-    margin-top: 0.5em !important;
+  background-color: rgba(var(--v-theme-error-rgb), 0.1) !important;
+  color: var(--v-theme-error) !important;
+  border: 1px solid rgba(var(--v-theme-error-rgb), 0.5) !important;
+  border-radius: 6px !important;
+  padding: 0.75em !important;
+  margin-top: 0.5em !important;
 }

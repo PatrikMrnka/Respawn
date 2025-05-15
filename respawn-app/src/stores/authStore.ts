@@ -1,23 +1,21 @@
-import { defineStore } from 'pinia';
-import Swal from 'sweetalert2'; // For potential notifications within the store
+import { defineStore } from 'pinia'
+import Swal from 'sweetalert2'
 
-// Define the structure of UserInfo based on your AuthResponseDto.UserDto
 interface UserInfo {
-  id: string;
-  nickname: string;
-  email: string;
-  avatarUrl?: string;
-  roles: string[];
+  id: string
+  nickname: string
+  email: string
+  avatarUrl?: string
+  roles: string[]
 }
 
 interface AuthState {
-  token: string | null;
-  user: UserInfo | null;
-  isAuthenticated: boolean;
-  expiresAt: Date | null;
+  token: string | null
+  user: UserInfo | null
+  isAuthenticated: boolean
+  expiresAt: Date | null
 }
 
-// Helper function to apply futuristic theme to SweetAlert2 (can be moved to a shared utility)
 const getFuturisticSwalOptions = (title: string) => {
   return {
     titleText: title,
@@ -35,16 +33,17 @@ const getFuturisticSwalOptions = (title: string) => {
       actions: 'futuristic-swal-actions',
     },
     buttonsStyling: false,
-  };
-};
-
+  }
+}
 
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     token: localStorage.getItem('authToken') || null,
     user: JSON.parse(localStorage.getItem('authUser') || 'null'),
     isAuthenticated: !!localStorage.getItem('authToken'),
-    expiresAt: localStorage.getItem('authExpiresAt') ? new Date(localStorage.getItem('authExpiresAt')!) : null,
+    expiresAt: localStorage.getItem('authExpiresAt')
+      ? new Date(localStorage.getItem('authExpiresAt')!)
+      : null,
   }),
   getters: {
     isLoggedIn: (state) => state.isAuthenticated && state.token,
@@ -52,50 +51,48 @@ export const useAuthStore = defineStore('auth', {
     getToken: (state) => state.token,
     userInitials: (state) => {
       if (state.user && state.user.nickname) {
-        return state.user.nickname.substring(0, 2).toUpperCase();
+        return state.user.nickname.substring(0, 2).toUpperCase()
       }
-      return '??';
+      return '??'
     },
   },
   actions: {
     setAuthData(token: string, user: UserInfo, expiresAt: string | Date) {
-      this.token = token;
-      this.user = user;
-      this.isAuthenticated = true;
-      this.expiresAt = new Date(expiresAt);
+      this.token = token
+      this.user = user
+      this.isAuthenticated = true
+      this.expiresAt = new Date(expiresAt)
 
-      localStorage.setItem('authToken', token);
-      localStorage.setItem('authUser', JSON.stringify(user));
-      localStorage.setItem('authExpiresAt', this.expiresAt.toISOString());
+      localStorage.setItem('authToken', token)
+      localStorage.setItem('authUser', JSON.stringify(user))
+      localStorage.setItem('authExpiresAt', this.expiresAt.toISOString())
     },
     clearAuthData() {
-      this.token = null;
-      this.user = null;
-      this.isAuthenticated = false;
-      this.expiresAt = null;
+      this.token = null
+      this.user = null
+      this.isAuthenticated = false
+      this.expiresAt = null
 
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('authUser');
-      localStorage.removeItem('authExpiresAt');
+      localStorage.removeItem('authToken')
+      localStorage.removeItem('authUser')
+      localStorage.removeItem('authExpiresAt')
     },
     async logout() {
-      this.clearAuthData();
-      // Zde by mohlo být volání API pro invalidaci tokenu na serveru, pokud je implementováno
+      this.clearAuthData()
       Swal.fire({
         ...getFuturisticSwalOptions('Odhlášení'),
         icon: 'success',
         text: 'Byli jste úspěšně odhlášeni.',
         timer: 1500,
         showConfirmButton: false,
-      });
-      // Přesměrování může být řešeno v komponentě, která volá logout
+      })
     },
-    // Akce pro kontrolu expirace tokenu (volatelná při startu aplikace)
+    // Akce pro kontrolu expirace tokenu
     checkTokenExpiration() {
-        if (this.expiresAt && new Date() > this.expiresAt) {
-            this.clearAuthData();
-            console.warn('Auth token expired, user logged out.');
-        }
-    }
+      if (this.expiresAt && new Date() > this.expiresAt) {
+        this.clearAuthData()
+        console.warn('Auth token expired, user logged out.')
+      }
+    },
   },
-});
+})

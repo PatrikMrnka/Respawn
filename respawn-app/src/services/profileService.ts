@@ -1,10 +1,8 @@
-// src/services/profileService.ts
-import { useAuthStore } from '@/stores/authStore';
-import Swal from 'sweetalert2';
+import { useAuthStore } from '@/stores/authStore'
+import Swal from 'sweetalert2'
 
-const API_BASE_URL = 'http://localhost:5207/api/userprofile'; // Základní URL pro UserProfileController
+const API_BASE_URL = 'http://localhost:5207/api/userprofile'
 
-// Helper pro SweetAlert2 (může být v shared utils)
 const getFuturisticSwalOptions = (title: string) => {
   return {
     titleText: title,
@@ -19,140 +17,159 @@ const getFuturisticSwalOptions = (title: string) => {
       confirmButton: 'futuristic-swal-confirm-button futuristic-btn',
     },
     buttonsStyling: false,
-  };
-};
+    heightAuto: false,
+  }
+}
 
 interface UserProfileData {
-  id: string;
-  nickname: string;
-  email: string;
-  avatarUrl?: string;
-  roles: string[];
+  // Toto je UserDto z backendu
+  id: string
+  nickname: string
+  email: string
+  avatarUrl?: string
+  roles: string[]
 }
 
 interface UpdateUserProfilePayload {
-  nickname: string;
-  avatarUrl?: string;
+  nickname: string
+  avatarUrl?: string
 }
 
-interface UpdateResponse {
-    message: string;
-    userInfo: UserProfileData;
+// Odpověď z API pro update profilu nyní obsahuje celý AuthResponseDto
+interface UpdateProfileApiResponse {
+  token: string
+  isSuccess: boolean
+  message: string
+  userInfo: UserProfileData
+  expiresAt: string // ISO date string
 }
-
 
 export const fetchUserProfile = async (): Promise<UserProfileData | null> => {
-  const authStore = useAuthStore();
+  const authStore = useAuthStore()
   if (!authStore.token) {
-    console.error("FetchUserProfile: No auth token found.");
-    return null;
+    console.error('FetchUserProfile: No auth token found.')
+    return null
   }
 
   try {
     const response = await fetch(`${API_BASE_URL}/me`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${authStore.token}`,
+        Authorization: `Bearer ${authStore.token}`,
         'Content-Type': 'application/json',
       },
-    });
+    })
 
     if (response.status === 401) {
-        authStore.logout(); // Token je neplatný nebo vypršel
-        Swal.fire({
-            ...getFuturisticSwalOptions('Chyba autorizace'),
-            icon: 'error',
-            text: 'Vaše přihlášení vypršelo. Přihlaste se prosím znovu.',
-        });
-        return null;
+      authStore.logout()
+      Swal.fire({
+        ...getFuturisticSwalOptions('Chyba autorizace'),
+        icon: 'error',
+        text: 'Vaše přihlášení vypršelo. Přihlaste se prosím znovu.',
+      })
+      return null
     }
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: `Chyba serveru: ${response.statusText}` }));
-      console.error("FetchUserProfile error:", errorData);
+      const errorData = await response
+        .json()
+        .catch(() => ({ message: `Chyba serveru: ${response.statusText}` }))
+      console.error('FetchUserProfile error:', errorData)
       Swal.fire({
         ...getFuturisticSwalOptions('Chyba'),
         icon: 'error',
         text: errorData.message || 'Nepodařilo se načíst profil.',
-      });
-      return null;
+      })
+      return null
     }
 
-    const data: UserProfileData = await response.json();
-    // Aktualizujeme data ve store, pokud se liší (např. po externí změně)
-    if (authStore.user?.nickname !== data.nickname || authStore.user?.avatarUrl !== data.avatarUrl) {
-        authStore.user = { ...authStore.user, ...data }; // Sloučíme, abychom nepřepsali ID a role, pokud nejsou v odpovědi
-        localStorage.setItem('authUser', JSON.stringify(authStore.user));
+    const data: UserProfileData = await response.json()
+    // Aktualizujeme data ve store, pokud se liší
+    if (
+      authStore.user &&
+      (authStore.user.nickname !== data.nickname ||
+        authStore.user.avatarUrl !== data.avatarUrl ||
+        authStore.user.email !== data.email)
+    ) {
+      const updatedUser = { ...authStore.user, ...data }
+      authStore.user = updatedUser // Přímo aktualizujeme objekt uživatele
+      localStorage.setItem('authUser', JSON.stringify(updatedUser))
+    } else if (!authStore.user && data) {
+      // Pokud uživatel ve store nebyl, ale data přišla
+      authStore.user = data
+      localStorage.setItem('authUser', JSON.stringify(data))
     }
-    return data;
+    return data
   } catch (error) {
-    console.error('FetchUserProfile API error:', error);
+    console.error('FetchUserProfile API error:', error)
     Swal.fire({
-        ...getFuturisticSwalOptions('Chyba'),
-        icon: 'error',
-        text: 'Došlo k chybě při komunikaci se serverem.',
-    });
-    return null;
+      ...getFuturisticSwalOptions('Chyba'),
+      icon: 'error',
+      text: 'Došlo k chybě při komunikaci se serverem.',
+    })
+    return null
   }
-};
+}
 
-export const updateUserProfile = async (payload: UpdateUserProfilePayload): Promise<UserProfileData | null> => {
-  const authStore = useAuthStore();
+export const updateUserProfile = async (
+  payload: UpdateUserProfilePayload,
+): Promise<UserProfileData | null> => {
+  const authStore = useAuthStore()
   if (!authStore.token) {
-    console.error("UpdateUserProfile: No auth token found.");
-    return null;
+    console.error('UpdateUserProfile: No auth token found.')
+    return null
   }
 
   try {
     const response = await fetch(`${API_BASE_URL}/me`, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${authStore.token}`,
+        Authorization: `Bearer ${authStore.token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
-    });
+    })
 
     if (response.status === 401) {
-        authStore.logout();
-        Swal.fire({
-            ...getFuturisticSwalOptions('Chyba autorizace'),
-            icon: 'error',
-            text: 'Vaše přihlášení vypršelo. Přihlaste se prosím znovu.',
-        });
-        return null;
+      authStore.logout()
+      Swal.fire({
+        ...getFuturisticSwalOptions('Chyba autorizace'),
+        icon: 'error',
+        text: 'Vaše přihlášení vypršelo. Přihlaste se prosím znovu.',
+      })
+      return null
     }
-    
-    const data: UpdateResponse = await response.json();
 
-    if (!response.ok) {
-      console.error("UpdateUserProfile error:", data);
+    const data: UpdateProfileApiResponse = await response.json()
+
+    if (!response.ok || !data.isSuccess) {
+      console.error('UpdateUserProfile error:', data)
       Swal.fire({
         ...getFuturisticSwalOptions('Chyba aktualizace'),
         icon: 'error',
         text: data.message || 'Nepodařilo se aktualizovat profil.',
-      });
-      return null;
+      })
+      return null
     }
-    
-    // Aktualizuj uživatele ve store
-    authStore.setAuthData(authStore.token, data.userInfo, authStore.expiresAt || new Date()); // Použijeme stávající token a expiraci
-    
+
+    // Aktualizuj token a uživatele ve store, protože API nyní vrací AuthResponseDto
+    authStore.setAuthData(data.token, data.userInfo, data.expiresAt)
+
     Swal.fire({
-        ...getFuturisticSwalOptions('Úspěch!'),
-        icon: 'success',
-        text: data.message || 'Profil byl úspěšně aktualizován.',
-        timer: 2000,
-        showConfirmButton: false,
-    });
-    return data.userInfo;
+      ...getFuturisticSwalOptions('Úspěch!'),
+      icon: 'success',
+      text: data.message || 'Profil byl úspěšně aktualizován.',
+      timer: 2000,
+      showConfirmButton: false,
+    })
+    return data.userInfo
   } catch (error) {
-    console.error('UpdateUserProfile API error:', error);
-     Swal.fire({
-        ...getFuturisticSwalOptions('Chyba'),
-        icon: 'error',
-        text: 'Došlo k chybě při komunikaci se serverem.',
-    });
-    return null;
+    console.error('UpdateUserProfile API error:', error)
+    Swal.fire({
+      ...getFuturisticSwalOptions('Chyba'),
+      icon: 'error',
+      text: 'Došlo k chybě při komunikaci se serverem.',
+    })
+    return null
   }
-};
+}

@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using Microsoft.OpenApi.MicrosoftExtensions;
 
 namespace RespawnApi.Application.DTOs.Auth
 {

@@ -4,7 +4,7 @@ namespace RespawnApi.Domain.Entities
 {
     public class UserProfile
     {
-        [Key] 
+        [Key]
         public string UserId { get; set; } // primary key + foreign key to AspNetUsers
 
         [Required]
@@ -12,7 +12,7 @@ namespace RespawnApi.Domain.Entities
         public string Nickname { get; set; }
 
         [MaxLength(500)]
-        public string AvatarUrl { get; set; } // URL to the avatar image
+        public string? AvatarUrl { get; set; } // URL to the avatar image
 
         // navigation properties
 
@@ -20,7 +20,5 @@ namespace RespawnApi.Domain.Entities
         public ICollection<PollVote> PollVotes { get; set; } = new List<PollVote>(); // navigation property to PollVote
         public ICollection<GameSession> GameSessions { get; set; } = new List<GameSession>(); // navigation property to GameSession
         public ICollection<PlayerStats> PlayerStats { get; set; } = new List<PlayerStats>(); // navigation property to PlayerStats
-
-        // UserProfile : IdentityUser navigation property defined in RespawnDbContext via Fluent API
     }
 }
