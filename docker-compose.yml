@@ -4,7 +4,7 @@ services:
     container_name: lanparty-database
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root_heslo_zmente_ho                                 
+      MYSQL_ROOT_PASSWORD: root_heslo_zmente_ho
       MYSQL_DATABASE: lanpartydb
       MYSQL_USER: lanparty_user
       MYSQL_PASSWORD: uzivatelske_heslo_zmente_ho
@@ -16,6 +16,22 @@ services:
         test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-uroot", "-proot_heslo_zmente_ho"]
         timeout: 20s
         retries: 10
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: lanparty-phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "8080:80" # Přístup k phpMyAdmin přes http://localhost:8080
+    environment:
+      PMA_HOST: db # Název služby vaší databáze (db)
+      PMA_PORT: 3306 # Port vaší databáze
+      PMA_USER: root # Uživatel pro přihlášení k databázi (můžete použít i lanparty_user)
+      PMA_PASSWORD: root_heslo_zmente_ho # Heslo pro uživatele root (nebo heslo pro lanparty_user)
+      # MYSQL_ROOT_PASSWORD: root_heslo_zmente_ho # Alternativně můžete použít toto pro přihlášení s rootem
+      # UPLOAD_LIMIT: 2G # Volitelné: Zvýšení limitu pro nahrávání souborů (např. pro import velkých databází)
+    depends_on:
+      - db # Zajistí, že phpMyAdmin se spustí až po databázi
 
 volumes:
   mysql_data:

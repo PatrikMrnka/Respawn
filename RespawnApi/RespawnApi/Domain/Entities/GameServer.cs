@@ -28,13 +28,13 @@ namespace RespawnApi.Domain.Entities
         [Required]
         public ServerStatus Status { get; set; } = ServerStatus.NOTINSTALLED; // status of the server
 
-        [Column(TypeName = "jsonb")]
+        [Column(TypeName = "json")]
         public string? Metrics { get; set; } // JSON metrics data
 
-        [Column(TypeName = "jsonb")]
+        [Column(TypeName = "json")]
         public string? PortMappings { get; set; } // JSON port mappings
 
-        [Column(TypeName = "jsonb")]
+        [Column(TypeName = "json")]
         public string? Configuration { get; set; } // JSON configuration data
 
         public ICollection<GameSession> GameSessions { get; set; } = new List<GameSession>(); // navigation property to GameSession

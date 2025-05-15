@@ -1,19 +1,22 @@
 /* assets/futuristic-theme.css */
 
-/* Font Imports from Google Fonts */
+/* ... (stávající importy fontů a globální styly) ... */
 @import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@300;400;500;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Exo+2:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap');
 
-/* Global Font Variables & Styles */
 :root {
   --v-theme-primary-rgb: 0, 224, 255;
   --v-theme-border-color-rgb: 0, 224, 255;
   --v-theme-secondary-rgb: 127, 0, 255;
-  --v-theme-error-rgb: 255, 82, 82; /* For cancel button */
-  --v-theme-surface-rgb: 26, 32, 51; /* #1A2033 */
-  --v-theme-text-primary-rgb: 224, 224, 224; /* #E0E0E0 */
+  --v-theme-error-rgb: 255, 82, 82;
+  --v-theme-surface-rgb: 26, 32, 51;
+  --v-theme-text-primary-rgb: 224, 224, 224;
+  --v-theme-background-rgb: 18, 24, 38;
+  --v-theme-success-rgb: 76, 175, 80;
+  --v-theme-warning-rgb: 255, 193, 7;
+  --v-theme-text-secondary-rgb: 160, 160, 192;
 
 
   --font-family-base: 'Inter', sans-serif;
@@ -100,30 +103,22 @@
 
 .futuristic-swal-title {
   color: var(--v-theme-primary) !important;
-  font-size: 3em !important;
-  padding-top: 1.2em !important;
-  padding-bottom: 0.1em !important;
-  text-align: center !important;
-}
-
-.futuristic-swal-label {
-  color: var(--v-theme-primary) !important;
   font-size: 1.8em !important;
   padding-top: 1.2em !important;
-  text-align: center !important;
+  padding-bottom: 0.8em !important;
 }
 
 .futuristic-swal-html-container {
   color: var(--v-theme-text-primary) !important;
   font-size: 1em !important;
   line-height: 1.6 !important;
-  padding: 0 1em 1em 1em !important; /* Added padding */
+  padding: 0 1em 1em 1em !important;
 }
 
 .swal-form-container {
   display: flex;
   flex-direction: column;
-  gap: 1rem; /* Space between form elements */
+  gap: 1rem;
   text-align: left;
 }
 
@@ -135,13 +130,13 @@
 }
 
 .futuristic-swal-input {
-  background-color: rgba(var(--v-theme-background-rgb, 18, 24, 38), 0.7) !important; /* Slightly darker than surface */
+  background-color: rgba(var(--v-theme-background-rgb), 0.7) !important;
   color: var(--v-theme-text-primary) !important;
   border: 1px solid rgba(var(--v-theme-primary-rgb), 0.3) !important;
   border-radius: 6px !important;
   font-size: 1em !important;
   padding: 0.75em !important;
-  box-shadow: none !important; /* Remove default SweetAlert2 shadow */
+  box-shadow: none !important;
 }
 
 .futuristic-swal-input:focus {
@@ -150,7 +145,7 @@
 }
 
 .futuristic-swal-actions {
-  gap: 1rem !important; /* Space between buttons */
+  gap: 1rem !important;
   padding: 1.5em !important;
 }
 
@@ -165,7 +160,7 @@
 
 .futuristic-swal-confirm-button {
   background-color: var(--v-theme-primary) !important;
-  color: var(--v-theme-background) !important; /* Dark text on bright button */
+  color: var(--v-theme-background) !important;
   border: 1px solid var(--v-theme-primary) !important;
 }
 .futuristic-swal-confirm-button:hover {
@@ -176,7 +171,7 @@
 .futuristic-swal-cancel-button {
   background-color: transparent !important;
   color: var(--v-theme-text-secondary) !important;
-  border: 1px solid rgba(var(--v-theme-text-secondary-rgb, 160, 160, 192), 0.5) !important;
+  border: 1px solid rgba(var(--v-theme-text-secondary-rgb), 0.5) !important;
 }
 .futuristic-swal-cancel-button:hover {
   color: var(--v-theme-error) !important;
@@ -184,36 +179,11 @@
   background-color: rgba(var(--v-theme-error-rgb), 0.1) !important;
 }
 
-/* Adjust icon colors for SweetAlert2 if needed */
-.swal2-icon.swal2-success .swal2-success-line-tip,
-.swal2-icon.swal2-success .swal2-success-line-long {
-  background-color: var(--v-theme-success) !important;
+.futuristic-swal-validation-message {
+    background-color: rgba(var(--v-theme-error-rgb), 0.1) !important;
+    color: var(--v-theme-error) !important;
+    border: 1px solid rgba(var(--v-theme-error-rgb), 0.5) !important;
+    border-radius: 6px !important;
+    padding: 0.75em !important;
+    margin-top: 0.5em !important;
 }
-.swal2-icon.swal2-success .swal2-success-ring {
-  border-color: rgba(var(--v-theme-success-rgb, 76, 175, 80), 0.3) !important;
-}
-.swal2-icon.swal2-error [class^=swal2-x-mark-line] {
-    background-color: var(--v-theme-error) !important;
-}
-.swal2-icon.swal2-error {
-    border-color: rgba(var(--v-theme-error-rgb), 0.3) !important;
-}
-.swal2-icon.swal2-warning {
-    border-color: rgba(var(--v-theme-warning-rgb, 255, 193, 7), 0.3) !important;
-    color: var(--v-theme-warning) !important;
-}
-
-/* Ensure theme variables are available for CSS (add if not already present) */
-:root {
-  --v-theme-background-rgb: 18, 24, 38; /* #121826 */
-  --v-theme-surface-rgb: 26, 32, 51;    /* #1A2033 */
-  --v-theme-primary-rgb: 0, 224, 255;     /* #00E0FF */
-  --v-theme-secondary-rgb: 127, 0, 255;   /* #7F00FF */
-  --v-theme-error-rgb: 255, 82, 82;      /* #FF5252 */
-  --v-theme-info-rgb: 33, 150, 243;      /* #2196F3 */
-  --v-theme-success-rgb: 76, 175, 80;    /* #4CAF50 */
-  --v-theme-warning-rgb: 255, 193, 7;    /* #FFC107 */
-  --v-theme-text-primary-rgb: 224, 224, 224; /* #E0E0E0 */
-  --v-theme-text-secondary-rgb: 160, 160, 192; /* #A0A0C0 */
-}
-

@@ -1,43 +1,85 @@
-import Swal from 'sweetalert2';
+// src/services/authService.ts
+import Swal, { type SweetAlertOptions } from 'sweetalert2'; // Import SweetAlertOptions
+import { useAuthStore } from '@/stores/authStore';
+
+const API_BASE_URL = 'http://localhost:5207/api/auth';
 
 // Helper function to apply futuristic theme to SweetAlert2
-const getFuturisticSwalOptions = (title: string) => {
+const getFuturisticSwalOptions = (title: string): SweetAlertOptions => { // Explicit type for return
   return {
     titleText: title,
-    background: '#1A2033', // surface color
-    color: '#E0E0E0', // text-primary
-    confirmButtonColor: '#00E0FF', // primary color
-    cancelButtonColor: '#FF5252', // error color
+    background: '#1A2033',
+    color: '#E0E0E0',
+    confirmButtonColor: '#00E0FF',
+    cancelButtonColor: '#FF5252', // Použijeme standardní error barvu pro cancel
     customClass: {
       popup: 'futuristic-swal-popup',
       title: 'futuristic-swal-title font-oxanium',
       htmlContainer: 'futuristic-swal-html-container font-inter',
       input: 'futuristic-swal-input',
       confirmButton: 'futuristic-swal-confirm-button futuristic-btn',
-      cancelButton: 'futuristic-swal-cancel-button futuristic-btn',
+      cancelButton: 'futuristic-swal-cancel-button futuristic-btn', // Použijeme stejnou třídu pro konzistenci, barva je přes cancelButtonColor
       actions: 'futuristic-swal-actions',
+      validationMessage: 'futuristic-swal-validation-message font-inter' // Custom class for validation message
     },
-    buttonsStyling: false, // Important to use customClass for buttons
+    buttonsStyling: false,
+    allowEnterKey: true, // Explicitně povolíme Enter klávesu pro potvrzení
+    heightAuto: false, // Zabraňuje SweetAlert2 měnit výšku body
   };
 };
 
-export const displayLoginModal = async () => {
+interface AuthResponse {
+  token: string;
+  isSuccess: boolean;
+  message: string;
+  userInfo: {
+    id: string;
+    nickname: string;
+    email: string;
+    avatarUrl?: string;
+    roles: string[];
+  };
+  expiresAt: string;
+}
+
+
+export const displayLoginModal = async (): Promise<{success: boolean, nickname?: string} | null> => {
+  const authStore = useAuthStore();
+
   const { value: formValues, isConfirmed } = await Swal.fire({
     ...getFuturisticSwalOptions('Přihlášení'),
     html: `
       <div class="swal-form-container">
-        <label for="swal-nickname" class="swal-label futuristic-swal-label font-inter">Přezdívka</label>
-        <input id="swal-nickname" class="swal2-input futuristic-swal-input" placeholder="TvojePřezdívka">
+        <label for="swal-nickname" class="swal-label font-inter">Přezdívka</label>
+        <input id="swal-nickname" class="swal2-input futuristic-swal-input" placeholder="TvojePřezdívka" autocomplete="username">
 
-        <label for="swal-password" class="swal-label futuristic-swal-label font-oxanium">Heslo</label>
-        <input id="swal-password" type="password" class="swal2-input futuristic-swal-input" placeholder="••••••••">
+        <label for="swal-password" class="swal-label font-inter">Heslo</label>
+        <input id="swal-password" type="password" class="swal2-input futuristic-swal-input" placeholder="••••••••" autocomplete="current-password">
       </div>
     `,
     focusConfirm: false,
     showCancelButton: true,
     confirmButtonText: 'Přihlásit se',
     cancelButtonText: 'Zrušit',
-    preConfirm: () => {
+    allowOutsideClick: () => !Swal.isLoading(),
+    showLoaderOnConfirm: true,
+    didOpen: () => {
+      const nicknameInput = document.getElementById('swal-nickname') as HTMLInputElement;
+      const passwordInput = document.getElementById('swal-password') as HTMLInputElement;
+      
+      nicknameInput?.focus(); // Fokus na první pole
+
+      const inputs = [nicknameInput, passwordInput];
+      inputs.forEach(input => {
+        input?.addEventListener('keypress', (event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault(); // Zabráníme výchozí akci (např. submit formuláře, pokud by byl)
+            Swal.clickConfirm();
+          }
+        });
+      });
+    },
+    preConfirm: async () => {
       const nicknameInput = document.getElementById('swal-nickname') as HTMLInputElement;
       const passwordInput = document.getElementById('swal-password') as HTMLInputElement;
       if (!nicknameInput || !passwordInput) {
@@ -50,47 +92,87 @@ export const displayLoginModal = async () => {
         Swal.showValidationMessage('Prosím, vyplňte přezdívku i heslo');
         return false;
       }
-      return { nickname, password };
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', },
+          body: JSON.stringify({ nickname, password }),
+        });
+        const data: AuthResponse = await response.json();
+        if (!response.ok || !data.isSuccess) {
+          Swal.showValidationMessage(data.message || `Chyba: ${response.statusText}`);
+          return false;
+        }
+        return data;
+      } catch (error) {
+        console.error('Login API error:', error);
+        Swal.showValidationMessage('Došlo k chybě při komunikaci se serverem.');
+        return false;
+      }
     }
   });
 
   if (isConfirmed && formValues) {
-    // Zde bude volání API pro přihlášení
-    console.log('Přihlašovací údaje:', formValues);
+    const authData = formValues as AuthResponse;
+    authStore.setAuthData(authData.token, authData.userInfo, authData.expiresAt);
     Swal.fire({
         ...getFuturisticSwalOptions('Úspěch!'),
         icon: 'success',
-        text: `Vítej zpět, ${formValues.nickname}! (Simulace)`,
+        text: `Vítej zpět, ${authData.userInfo.nickname}!`,
         timer: 2000,
         showConfirmButton: false,
     });
-    // TODO: Zavolat API, zpracovat token, aktualizovat stav uživatele
+    return { success: true, nickname: authData.userInfo.nickname };
   }
+  return null;
 };
 
-export const displayRegisterModal = async () => {
+export const displayRegisterModal = async (): Promise<{success: boolean, nickname?: string} | null> => {
+  const authStore = useAuthStore();
+
   const { value: formValues, isConfirmed } = await Swal.fire({
-    ...getFuturisticSwalOptions('Registrace'),
+    ...getFuturisticSwalOptions('Registrace nového hráče'),
     html: `
       <div class="swal-form-container">
-        <label for="swal-reg-nickname" class="swal-label futuristic-swal-label font-inter">Přezdívka</label>
-        <input id="swal-reg-nickname" class="swal2-input futuristic-swal-input" placeholder="TvojePřezdívka">
+        <label for="swal-reg-nickname" class="swal-label font-inter">Přezdívka</label>
+        <input id="swal-reg-nickname" class="swal2-input futuristic-swal-input" placeholder="TvojePřezdívka" autocomplete="username">
 
-        <label for="swal-reg-email" class="swal-label futuristic-swal-label font-inter">Email</label>
-        <input id="swal-reg-email" type="email" class="swal2-input futuristic-swal-input" placeholder="email@example.com">
+        <label for="swal-reg-email" class="swal-label font-inter">Email</label>
+        <input id="swal-reg-email" type="email" class="swal2-input futuristic-swal-input" placeholder="email@example.com" autocomplete="email">
 
-        <label for="swal-reg-password" class="swal-label futuristic-swal-label font-inter">Heslo</label>
-        <input id="swal-reg-password" type="password" class="swal2-input futuristic-swal-input" placeholder="••••••••">
+        <label for="swal-reg-password" class="swal-label font-inter">Heslo</label>
+        <input id="swal-reg-password" type="password" class="swal2-input futuristic-swal-input" placeholder="Min. 8 znaků, velká/malá písmena, číslice" autocomplete="new-password">
 
-        <label for="swal-reg-confirm-password" class="swal-label futuristic-swal-label font-inter">Potvrzení hesla</label>
-        <input id="swal-reg-confirm-password" type="password" class="swal2-input futuristic-swal-input" placeholder="••••••••">
+        <label for="swal-reg-confirm-password" class="swal-label font-inter">Potvrzení hesla</label>
+        <input id="swal-reg-confirm-password" type="password" class="swal2-input futuristic-swal-input" placeholder="••••••••" autocomplete="new-password">
       </div>
     `,
     focusConfirm: false,
     showCancelButton: true,
     confirmButtonText: 'Zaregistrovat se',
     cancelButtonText: 'Zrušit',
-    preConfirm: () => {
+    allowOutsideClick: () => !Swal.isLoading(),
+    showLoaderOnConfirm: true,
+    didOpen: () => {
+      const nicknameInput = document.getElementById('swal-reg-nickname') as HTMLInputElement;
+      const emailInput = document.getElementById('swal-reg-email') as HTMLInputElement;
+      const passwordInput = document.getElementById('swal-reg-password') as HTMLInputElement;
+      const confirmPasswordInput = document.getElementById('swal-reg-confirm-password') as HTMLInputElement;
+      
+      nicknameInput?.focus(); // Fokus na první pole
+
+      const inputs = [nicknameInput, emailInput, passwordInput, confirmPasswordInput];
+      inputs.forEach(input => {
+        input?.addEventListener('keypress', (event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            Swal.clickConfirm();
+          }
+        });
+      });
+    },
+    preConfirm: async () => {
       const nicknameInput = document.getElementById('swal-reg-nickname') as HTMLInputElement;
       const emailInput = document.getElementById('swal-reg-email') as HTMLInputElement;
       const passwordInput = document.getElementById('swal-reg-password') as HTMLInputElement;
@@ -100,7 +182,6 @@ export const displayRegisterModal = async () => {
         Swal.showValidationMessage('Chyba při načítání formuláře');
         return false;
       }
-
       const nickname = nicknameInput.value;
       const email = emailInput.value;
       const password = passwordInput.value;
@@ -112,27 +193,45 @@ export const displayRegisterModal = async () => {
       }
       if (password !== confirmPassword) {
         Swal.showValidationMessage('Hesla se neshodují');
-        // Clear password fields for better UX
         passwordInput.value = '';
         confirmPasswordInput.value = '';
         passwordInput.focus();
         return false;
       }
-      // Add more validation if needed (e.g., password strength, email format)
-      return { nickname, email, password };
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', },
+          body: JSON.stringify({ nickname, email, password, confirmPassword }),
+        });
+        const data: AuthResponse = await response.json();
+        if (!response.ok || !data.isSuccess) {
+          Swal.showValidationMessage(data.message || `Chyba: ${response.statusText}`);
+          return false;
+        }
+        return data;
+      } catch (error) {
+        console.error('Register API error:', error);
+        Swal.showValidationMessage('Došlo k chybě při komunikaci se serverem.');
+        return false;
+      }
     }
   });
 
   if (isConfirmed && formValues) {
-    // Zde bude volání API pro registraci
-    console.log('Registrační údaje:', formValues);
-     Swal.fire({
+    const authData = formValues as AuthResponse;
+    if (authData.token && authData.userInfo) {
+        authStore.setAuthData(authData.token, authData.userInfo, authData.expiresAt);
+    }
+    Swal.fire({
         ...getFuturisticSwalOptions('Registrace úspěšná!'),
         icon: 'success',
-        text: `Vítej, ${formValues.nickname}! Byl jsi zaregistrován. (Simulace)`,
+        text: authData.message || `Vítej, ${authData.userInfo.nickname}! Byl jsi zaregistrován.`,
         timer: 2500,
         showConfirmButton: false,
     });
-    // TODO: Zavolat API, zpracovat odpověď
+    return { success: true, nickname: authData.userInfo.nickname };
   }
+  return null;
 };

@@ -20,7 +20,7 @@ namespace RespawnApi.Domain.Entities
 
         [Required]
         // JSON
-        [Column(TypeName = "jsonb")]
+        [Column(TypeName = "json")]
         public string Data { get; set; }
 
         // navigation properties
@@ -31,7 +31,7 @@ namespace RespawnApi.Domain.Entities
         [ForeignKey(nameof(ServerId))]
         public GameServer? Server { get; set; } // navigation property to GameServer
 
-        [ForeignKey(nameof(GameSession))]
+        [ForeignKey(nameof(GameSessionId))]
         public GameSession? GameSession { get; set; } // navigation property to GameSession
     }
 }
