@@ -1,171 +1,150 @@
 <template>
-  <v-app-bar app color="surface" elevation="4" class="futuristic-app-bar">
-    <v-app-bar-nav-icon
-      @click.stop="$emit('toggle-drawer')"
-      class="text-primary"
-    ></v-app-bar-nav-icon>
-    <v-toolbar-title
-      class="font-oxanium text-primary app-title-clickable"
-      @click="$emit('navigate-home')"
-    >
-      Respawn
+  <v-app-bar app color="surface" density="compact" class="futuristic-app-bar" elevation="2">
+    <v-app-bar-nav-icon @click.stop="emitToggleLeftDrawer" class="futuristic-icon-btn"></v-app-bar-nav-icon>
+    
+    <v-toolbar-title class="font-oxanium app-title">
+      <router-link to="/" class="text-decoration-none text-primary">
+        <v-icon :icon="mdiRocketLaunchOutline" start></v-icon>
+        Respawn App
+      </router-link>
     </v-toolbar-title>
+
     <v-spacer></v-spacer>
 
     <template v-if="!authStore.isLoggedIn">
-      <v-btn class="futuristic-btn mr-2" variant="outlined" @click="$emit('login')">
-        <v-icon left class="mr-1">{{ mdiLogin }}</v-icon>
+      <v-btn @click="showLoginModal" class="futuristic-btn auth-btn mx-1" :prepend-icon="mdiLoginVariant">
         Přihlásit se
       </v-btn>
-      <v-btn class="futuristic-btn-filled" color="primary" @click="$emit('register')">
-        <v-icon left class="mr-1">{{ mdiAccountPlus }}</v-icon>
+      <v-btn @click="showRegisterModal" class="futuristic-btn-secondary auth-btn mx-1" :prepend-icon="mdiAccountPlusOutline">
         Registrovat
       </v-btn>
     </template>
     <template v-else>
-      <v-menu offset-y>
-        <template v-slot:activator="{ props }">
-          <v-btn icon class="text-primary ml-2" v-bind="props">
-            <v-avatar color="secondary" size="36">
-              <v-img
-                v-if="authStore.currentUser?.avatarUrl"
-                :src="authStore.currentUser.avatarUrl"
-                :alt="
-                  authStore.currentUser.nickname
-                    ? `${authStore.currentUser.nickname} avatar`
-                    : 'User avatar'
-                "
-                cover
-                @error="avatarImageError"
-              ></v-img>
-              <span v-else class="text-white font-weight-bold">{{ authStore.userInitials }}</span>
-            </v-avatar>
-          </v-btn>
-        </template>
-        <v-list bg-color="surface" class="futuristic-menu" density="compact">
-          <v-list-item class="menu-item-disabled">
-            <v-list-item-title class="font-inter text-text-secondary">
-              Přihlášen jako:
-              <strong class="font-oxanium">{{ authStore.currentUser?.nickname }}</strong>
-            </v-list-item-title>
-          </v-list-item>
-          <v-divider></v-divider>
-          <v-list-item @click="$emit('navigate', '/profile')" class="menu-item">
-            <template v-slot:prepend>
-              <v-icon :color="isActiveRoute('/profile') ? 'primary' : 'text-primary'">{{
-                mdiAccountCog
-              }}</v-icon>
-            </template>
-            <v-list-item-title
-              class="font-inter"
-              :class="isActiveRoute('/profile') ? 'text-primary' : 'text-text-primary'"
-              >Můj Profil</v-list-item-title
-            >
-          </v-list-item>
-          <v-list-item @click="$emit('logout')" class="menu-item">
-            <template v-slot:prepend>
-              <v-icon color="text-text-primary">{{ mdiLogout }}</v-icon>
-            </template>
-            <v-list-item-title class="font-inter text-text-primary">Odhlásit se</v-list-item-title>
-          </v-list-item>
-        </v-list>
-      </v-menu>
+      <span class="mr-3 font-inter text-subtitle-2 d-none d-sm-inline">Vítej, {{ authStore.user?.nickname }}!</span>
+      <v-btn @click="handleLogout" class="futuristic-btn error-btn mx-1" :prepend-icon="mdiLogoutVariant">
+        Odhlásit se
+      </v-btn>
     </template>
+
+    <v-app-bar-nav-icon @click.stop="emitToggleRightDrawer" class="futuristic-icon-btn" v-if="authStore.isLoggedIn">
+        <v-icon :icon="mdiAccountGroup"></v-icon>
+    </v-app-bar-nav-icon>
   </v-app-bar>
 </template>
 
-<script lang="ts" setup>
-import { useAuthStore } from '@/stores/authStore'
-import { useRoute } from 'vue-router'
-import { mdiLogin, mdiAccountPlus, mdiAccountCog, mdiLogout } from '@mdi/js'
+<script setup lang="ts">
+// import { computed } from 'vue'; // Již není potřeba pro isUserAdmin/isUserSpravce
+import { useAuthStore } from '@/stores/authStore';
+import { displayLoginModal, displayRegisterModal } from '@/services/authService';
+import {
+    mdiRocketLaunchOutline,
+    mdiLoginVariant,
+    mdiAccountPlusOutline,
+    mdiLogoutVariant,
+    mdiAccountGroup
+} from '@mdi/js';
 
-defineEmits(['toggle-drawer', 'login', 'register', 'logout', 'navigate', 'navigate-home'])
+const authStore = useAuthStore();
 
-const authStore = useAuthStore()
-const route = useRoute()
+const emit = defineEmits(['toggle-left-drawer', 'toggle-right-drawer']);
 
-const isActiveRoute = (path: string) => {
-  return route.path === path
-}
+const emitToggleLeftDrawer = () => {
+  emit('toggle-left-drawer');
+};
 
-const avatarImageError = (event: Event) => {
-  const imgElement = event.target as HTMLImageElement
-  imgElement.src = 'https://placehold.co/36x36/7F00FF/E0E0E0?text=' + authStore.userInitials
-}
+const emitToggleRightDrawer = () => {
+  emit('toggle-right-drawer');
+};
+
+const showLoginModal = async () => {
+  try {
+    await displayLoginModal();
+  } catch (error) {
+    console.debug('Login modal was closed or failed.', error);
+  }
+};
+
+const showRegisterModal = async () => {
+  try {
+    await displayRegisterModal();
+  } catch (error) {
+    console.debug('Register modal was closed or failed.', error);
+  }
+};
+
+const handleLogout = async () => {
+  await authStore.logout();
+};
+
 </script>
 
 <style scoped>
 .futuristic-app-bar {
-  border-bottom: 1px solid rgba(var(--v-theme-primary-rgb), 0.3) !important;
-}
-.app-title-clickable {
-  cursor: pointer;
-  transition: opacity 0.2s ease-in-out;
-}
-.app-title-clickable:hover {
-  opacity: 0.8;
+  border-bottom: 1px solid rgba(var(--v-theme-primary-rgb), 0.2) !important;
+  background: linear-gradient(to right, rgba(var(--v-theme-surface-rgb), 0.95), rgba(var(--v-theme-surface-rgb), 0.85));
+  backdrop-filter: blur(10px);
 }
 
-.user-avatar-button .v-avatar {
-  overflow: hidden;
+.app-title .v-icon {
+  color: var(--v-theme-primary);
+  animation: pulse-glow 2s infinite alternate;
 }
 
-.user-avatar-button .v-avatar .v-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+@keyframes pulse-glow {
+  0% { text-shadow: 0 0 5px rgba(var(--v-theme-primary-rgb), 0.5); }
+  100% { text-shadow: 0 0 15px rgba(var(--v-theme-primary-rgb), 1); }
+}
+
+.futuristic-btn, .futuristic-btn-secondary, .error-btn {
+  font-family: var(--font-family-headings-exo2);
+  font-weight: 600;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  transition: all 0.3s ease-in-out;
 }
 
 .futuristic-btn {
-  border-color: rgba(var(--v-theme-border-color-rgb), 0.7);
-  color: var(--v-theme-primary);
-  font-family: 'Exo 2', sans-serif;
+  background: linear-gradient(45deg, var(--v-theme-primary), var(--v-theme-secondary)) !important;
+  color: #0D1117 !important;
+  border: none;
+  box-shadow: 0 2px 8px rgba(var(--v-theme-primary-rgb), 0.4);
 }
 .futuristic-btn:hover {
-  background-color: rgba(var(--v-theme-primary-rgb), 0.1);
-  border-color: var(--v-theme-primary);
-  box-shadow: 0 0 10px 0px var(--v-theme-glow-color);
-}
-.futuristic-btn-filled {
-  font-family: 'Exo 2', sans-serif;
-  box-shadow: 0 0 8px 0px transparent;
-}
-.futuristic-btn-filled:hover {
-  box-shadow: 0 0 12px 2px var(--v-theme-glow-color);
+  box-shadow: 0 4px 15px rgba(var(--v-theme-primary-rgb), 0.6);
   transform: translateY(-2px);
 }
-.futuristic-menu .v-list-item-title {
-  font-size: 0.95rem !important;
+
+.futuristic-btn-secondary {
+  background-color: transparent !important;
+  border: 1px solid var(--v-theme-secondary) !important;
+  color: var(--v-theme-secondary) !important;
 }
-.futuristic-menu .v-list-item {
-  cursor: pointer;
+.futuristic-btn-secondary:hover {
+  background-color: rgba(var(--v-theme-secondary-rgb), 0.1) !important;
+  transform: translateY(-2px);
 }
-.futuristic-menu .v-list-item:hover {
-  background-color: rgba(var(--v-theme-primary-rgb), 0.1) !important;
+
+.error-btn {
+  background-color: var(--v-theme-error) !important;
+  color: white !important;
+   border: none;
+  box-shadow: 0 2px 8px rgba(var(--v-theme-error-rgb), 0.4);
 }
-.futuristic-menu .v-list-item:hover .v-list-item-title,
-.futuristic-menu .v-list-item:hover .v-icon {
-  color: var(--v-theme-primary) !important;
+.error-btn:hover {
+  background-color: var(--v-theme-error-darken-1) !important;
+  box-shadow: 0 4px 15px rgba(var(--v-theme-error-rgb), 0.6);
+  transform: translateY(-2px);
 }
-.menu-item-disabled {
-  opacity: 0.7;
-  pointer-events: none;
+
+.auth-btn {
+  min-width: 120px;
 }
-.menu-item .v-list-item-title {
-  font-family: 'Exo 2', sans-serif;
-  transition: color 0.2s ease-in-out;
+
+.futuristic-icon-btn {
+    color: var(--v-theme-text-secondary);
 }
-.menu-item:not(.v-list-item--active) .v-list-item-title {
-  color: var(--v-theme-text-primary) !important;
-}
-.menu-item:not(.v-list-item--active) .v-icon {
-  color: var(--v-theme-text-primary) !important;
-}
-.menu-item.v-list-item--active .v-list-item-title,
-.menu-item.v-list-item--active .v-icon {
-  color: var(--v-theme-primary) !important;
-}
-.v-avatar .text-white {
-  color: #ffffff !important;
+.futuristic-icon-btn:hover {
+    color: var(--v-theme-primary);
 }
 </style>

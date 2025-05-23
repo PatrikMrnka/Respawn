@@ -8,7 +8,7 @@ using RespawnApi.Application.Services;
 using RespawnApi.Data;
 using RespawnApi.DataAccess.Interfaces;
 using RespawnApi.DataAccess.Repositories;
-using RespawnApi.Hubs; // <-- Přidáno: using pro PollHub
+using RespawnApi.Hubs; // Pro PollHub a PresenceHub
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,17 +17,16 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowRespawnApp", policyBuilder =>
     {
-        policyBuilder.WithOrigins("http://localhost:5173") // Adresa frontend serveru
+        policyBuilder.WithOrigins("http://localhost:5173")
                      .AllowAnyHeader()
                      .AllowAnyMethod()
-                     .AllowCredentials(); // <-- Přidáno: Povolení credentials pro SignalR s tokenem
+                     .AllowCredentials();
     });
 });
 
-// connection to database
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-var serverVersionsString = builder.Configuration["MySqlSettings:ServerVersion"] ?? "10.3.32"; // Použijte verzi z konfigurace nebo výchozí
-var serverVersion = new MySqlServerVersion(new Version(serverVersionsString)); // Ujistěte se, že verze je správná pro vaši DB
+var serverVersionsString = builder.Configuration["MySqlSettings:ServerVersion"] ?? "10.3.32";
+var serverVersion = new MySqlServerVersion(new Version(serverVersionsString));
 
 builder.Services.AddDbContext<RespawnDbContext>(options =>
     options.UseMySql(connectionString, serverVersion, mySqlOptions =>
@@ -78,15 +77,15 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(key),
         ClockSkew = TimeSpan.Zero
     };
-
-    // Pro SignalR autentizaci přes query string (pokud prohlížeč nepodporuje odeslání Auth headeru pro WebSockets)
     options.Events = new JwtBearerEvents
     {
         OnMessageReceived = context =>
         {
             var accessToken = context.Request.Query["access_token"];
             var path = context.HttpContext.Request.Path;
-            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/pollHub")) // Cesta k vašemu SignalR hubu
+            // Povolení tokenu z query stringu pro oba huby
+            if (!string.IsNullOrEmpty(accessToken) &&
+                (path.StartsWithSegments("/pollHub") || path.StartsWithSegments("/presenceHub")))
             {
                 context.Token = accessToken;
             }
@@ -98,12 +97,10 @@ builder.Services.AddAuthentication(options =>
 // Dependency Injection
 builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddSingleton<IUserPresenceService, UserPresenceService>(); // <-- Přidáno: Registrace UserPresenceService jako Singleton
 
 builder.Services.AddControllers();
-
-// Přidání SignalR služeb
-builder.Services.AddSignalR(); // <-- Přidáno
-
+builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -159,35 +156,21 @@ async Task SeedRolesAndAdminAsync(UserManager<IdentityUser> userManager, RoleMan
             logger.LogInformation("Role '{RoleName}' byla vytvorena.", roleName);
         }
     }
-
     var adminUser = await userManager.FindByNameAsync("patricek");
     if (adminUser == null)
     {
-        var newAdmin = new IdentityUser
-        {
-            UserName = "patricek",
-            Email = "patrik.mrnka12@gmail.com",
-            EmailConfirmed = true
-        };
+        var newAdmin = new IdentityUser { UserName = "patricek", Email = "patrik.mrnka12@gmail.com", EmailConfirmed = true };
         var createAdminResult = await userManager.CreateAsync(newAdmin, "a1234");
         if (createAdminResult.Succeeded)
         {
             await userManager.AddToRoleAsync(newAdmin, RespawnApi.Domain.Enums.UserRoles.Administrator);
             logger.LogInformation("Uzivatel 'patricek' byl vytvoren a prirazen do role Administrator.");
             var userProfileRepository = services.GetRequiredService<RespawnApi.DataAccess.Interfaces.IUserProfileRepository>();
-            var adminProfile = new RespawnApi.Domain.Entities.UserProfile
-            {
-                UserId = newAdmin.Id,
-                Nickname = newAdmin.UserName!, // UserName by neměl být null po úspěšném vytvoření
-                AvatarUrl = null
-            };
+            var adminProfile = new RespawnApi.Domain.Entities.UserProfile { UserId = newAdmin.Id, Nickname = newAdmin.UserName!, AvatarUrl = null };
             await userProfileRepository.AddAsync(adminProfile);
             logger.LogInformation("UserProfile pro 'patricek' byl vytvoren.");
         }
-        else
-        {
-            foreach (var error in createAdminResult.Errors) { logger.LogError("Chyba pri vytvareni uzivatele 'patricek': {ErrorDescription}", error.Description); }
-        }
+        else { foreach (var error in createAdminResult.Errors) { logger.LogError("Chyba pri vytvareni uzivatele 'patricek': {ErrorDescription}", error.Description); } }
     }
     else
     {
@@ -200,18 +183,11 @@ async Task SeedRolesAndAdminAsync(UserManager<IdentityUser> userManager, RoleMan
     }
 }
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
+if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 app.UseCors("AllowRespawnApp");
-
-app.UseAuthentication(); // Musí být před UseAuthorization
+app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
-app.MapHub<PollHub>("/pollHub"); // <-- Přidáno: Mapování SignalR Hubu
-
+app.MapHub<PollHub>("/pollHub");
+app.MapHub<PresenceHub>("/presenceHub"); // <-- Přidáno: Mapování PresenceHubu
 app.Run();

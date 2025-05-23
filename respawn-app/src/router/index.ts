@@ -7,7 +7,7 @@ import StatisticsView from '@/views/StatisticsView.vue'
 import AboutView from '@/views/AboutView.vue'
 import AdminView from '@/views/AdminView.vue'
 import UsersView from '@/views/UsersView.vue'
-import PollsView from '@/views/PollsView.vue';
+import PollsView from '@/views/PollsView.vue'
 import { useAuthStore } from '@/stores/authStore'
 import { displayLoginModal } from '@/services/authService'
 import { UserRoles } from '@/types/enums'
