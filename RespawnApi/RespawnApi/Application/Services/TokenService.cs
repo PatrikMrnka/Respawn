@@ -26,18 +26,18 @@ namespace RespawnApi.Application.Services
             var key = Encoding.ASCII.GetBytes(jwtSettings["Key"]
                 ?? throw new InvalidOperationException("JWT Key not found in configuration for TokenService."));
 
-            var userRoles = await _userManager.GetRolesAsync(user);
+            var userRoles = await _userManager.GetRolesAsync(user); // This line already exists and is correct
 
             var claims = new List<Claim>
             {
-                new Claim(JwtRegisteredClaimNames.Sub, user.Id), // Subject (user ID)
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), // JWT ID
+                new Claim(JwtRegisteredClaimNames.Sub, user.Id),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 new Claim(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
-                new Claim(ClaimTypes.Name, user.UserName ?? string.Empty), // Ukládáme Nickname jako Name
-                new Claim("uid", user.Id) // Další identifikátor uživatele, pokud je potřeba
+                new Claim(ClaimTypes.Name, user.UserName ?? string.Empty),
+                new Claim("uid", user.Id)
             };
 
-            foreach (var userRole in userRoles)
+            foreach (var userRole in userRoles) // This loop already exists and is correct
             {
                 claims.Add(new Claim(ClaimTypes.Role, userRole));
             }
@@ -63,7 +63,7 @@ namespace RespawnApi.Application.Services
                 UserInfo = new UserDto
                 {
                     Id = user.Id,
-                    Nickname = user.UserName ?? string.Empty, // Nickname je UserName v IdentityUser
+                    Nickname = user.UserName ?? string.Empty,
                     Email = user.Email ?? string.Empty,
                     AvatarUrl = userProfile?.AvatarUrl,
                     Roles = userRoles

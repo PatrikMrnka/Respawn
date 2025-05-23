@@ -14,7 +14,7 @@ namespace RespawnApi.Application.DTOs.Auth
         public string Email { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Heslo je povinné!")]
-        [StringLength(100, MinimumLength = 5, ErrorMessage = "Heslo musí mít alespoň 8 znaků.")]
+        [StringLength(100, MinimumLength = 5, ErrorMessage = "Heslo musí mít alespoň 5 znaků.")]
         public string Password { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Potvrzení hesla je povinné.")]

@@ -175,9 +175,8 @@
 }
 
 .swal-label {
-  font-size: 0.9rem;
+  font-size: 1.1rem;
   color: var(--v-theme-text-secondary);
-  margin-bottom: 0.25rem;
   display: block;
 }
 

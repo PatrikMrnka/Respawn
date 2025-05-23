@@ -1,104 +1,194 @@
 <template>
   <v-navigation-drawer
-    :model-value="drawerVisible"
-    @update:model-value="$emit('update:drawerVisible', $event)"
     app
-    temporary
-    color="surface"
+    :permanent="!isMobile"
+    :temporary="isMobile"
+    v-model="drawer"
     class="futuristic-drawer"
   >
     <v-list nav dense>
-      <v-list-item
-        v-for="(item, i) in menuItems"
-        :key="i"
-        @click="$emit('navigate', item.path)"
-        class="menu-item"
-        :active="isActiveRoute(item.path)"
-      >
+      <v-list-item class="logo-item pa-2 mb-2">
         <template v-slot:prepend>
-          <v-icon :icon="item.icon" :color="iconColor(item.path)"></v-icon>
+          <v-icon size="large" color="primary" :icon="mdiRocketLaunchOutline"></v-icon>
         </template>
-        <v-list-item-title
-          :class="isActiveRoute(item.path) ? 'text-primary' : 'text-text-primary'"
-          >{{ item.title }}</v-list-item-title
-        >
+        <v-list-item-title class="text-h5 font-oxanium ml-2">
+          Respawn App
+        </v-list-item-title>
       </v-list-item>
+
+      <v-divider></v-divider>
+
+      <v-list-item
+        :prepend-icon="mdiHomeOutline"
+        title="Domů"
+        to="/"
+        exact
+        class="futuristic-list-item"
+      ></v-list-item>
+
+      <v-list-item
+        v-if="authStore.isLoggedIn"
+        :prepend-icon="mdiAccountCircleOutline"
+        title="Profil"
+        to="/profile"
+        class="futuristic-list-item"
+      ></v-list-item>
+
+      <v-list-item
+        v-if="authStore.isLoggedIn"
+        :prepend-icon="mdiServerNetwork"
+        title="Servery"
+        to="/servers"
+        class="futuristic-list-item"
+      ></v-list-item>
+
+      <v-list-item
+        v-if="authStore.isLoggedIn"
+        :prepend-icon="mdiPoll" title="Ankety"
+        to="/polls"
+        class="futuristic-list-item"
+      ></v-list-item>
+
+      <v-list-item
+        :prepend-icon="mdiChartLine"
+        title="Statistiky"
+        to="/statistics"
+        class="futuristic-list-item"
+      ></v-list-item>
+
+      <v-list-item
+        :prepend-icon="mdiInformationOutline"
+        title="O aplikaci"
+        to="/about"
+        class="futuristic-list-item"
+      ></v-list-item>
+
+      <v-divider v-if="isUserAdmin || isUserSpravce" class="my-2"></v-divider>
+
+      <v-list-item
+        v-if="isUserAdmin"
+        :prepend-icon="mdiShieldCrownOutline"
+        title="Administrace"
+        to="/admin"
+        class="futuristic-list-item admin-link"
+      ></v-list-item>
+
+      <v-list-item
+        v-if="isUserSpravce"
+        :prepend-icon="mdiAccountGroupOutline"
+        title="Uživatelé"
+        to="/users"
+        class="futuristic-list-item spravce-link"
+      ></v-list-item>
+
     </v-list>
+
+    <template v-slot:append>
+      <div class="pa-2">
+        <v-btn
+          v-if="authStore.isLoggedIn"
+          block
+          @click="handleLogout"
+          color="error"
+          variant="outlined"
+          :prepend-icon="mdiLogout"
+          class="futuristic-btn"
+        >
+          Odhlásit se
+        </v-btn>
+      </div>
+    </template>
   </v-navigation-drawer>
 </template>
 
-<script lang="ts" setup>
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+<script setup lang="ts">
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { useAuthStore } from '@/stores/authStore';
+import { UserRoles } from '@/types/enums';
+// Explicitní import MDI ikon
+import {
+  mdiRocketLaunchOutline,
+  mdiHomeOutline,
+  mdiAccountCircleOutline,
+  mdiServerNetwork,
+  mdiChartLine,
+  mdiInformationOutline,
+  mdiShieldCrownOutline,
+  mdiAccountGroupOutline,
+  mdiLogout,
+  mdiPoll // <-- Přidáno: Ikona pro ankety
+} from '@mdi/js';
 
-// Definice typu pro položku menu
-interface MenuItem {
-  title: string
-  icon: string
-  path: string
-  requiresAuth?: boolean
+const authStore = useAuthStore();
+
+const drawer = ref(!isMobileDevice());
+const isMobile = ref(isMobileDevice());
+
+function isMobileDevice() {
+  if (typeof window !== 'undefined') {
+    return window.innerWidth < 960;
+  }
+  return false;
 }
 
-const props = defineProps<{
-  drawerVisible: boolean
-  menuItems: MenuItem[]
-}>()
+const handleResize = () => {
+  isMobile.value = isMobileDevice();
+  if (!isMobile.value) {
+    drawer.value = true;
+  }
+};
 
-defineEmits(['update:drawerVisible', 'navigate'])
+onMounted(() => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', handleResize);
+    handleResize();
+  }
+});
 
-const route = useRoute()
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', handleResize);
+  }
+});
 
-const isActiveRoute = (path: string) => {
-  return route.path === path
-}
+const isUserAdmin = computed(() => {
+  return authStore.isLoggedIn && authStore.user?.roles?.includes(UserRoles.Administrator);
+});
 
-const iconColor = (path: string) => {
-  return isActiveRoute(path) ? 'primary' : 'text-primary'
-}
+const isUserSpravce = computed(() => {
+  return authStore.isLoggedIn && authStore.user?.roles?.includes(UserRoles.Spravce);
+});
+
+const handleLogout = async () => {
+  await authStore.logout();
+};
+
 </script>
 
 <style scoped>
 .futuristic-drawer {
-  border-right: 1px solid rgba(var(--v-theme-primary-rgb), 0.2) !important;
+  background-color: var(--v-theme-surface);
+  border-right: 1px solid rgba(var(--v-theme-primary-rgb), 0.15);
 }
 
-/* Navigation drawer menu item styling */
-.menu-item .v-list-item-title {
-  font-family: 'Exo 2', sans-serif;
-  transition: color 0.2s ease-in-out;
+.futuristic-list-item:hover {
+  background-color: rgba(var(--v-theme-primary-rgb), 0.1);
 }
-
-.menu-item {
-  border-left: 3px solid transparent;
-  transition: all 0.2s ease-in-out;
-  cursor: pointer;
+.futuristic-list-item.v-list-item--active {
+  background-color: rgba(var(--v-theme-primary-rgb), 0.15);
+  border-left: 3px solid var(--v-theme-primary);
 }
-
-/* Barva textu a ikon pro neaktivní položky */
-.menu-item:not(.v-list-item--active) .v-list-item-title {
-  color: var(--v-theme-text-primary) !important;
+.futuristic-list-item .v-list-item-title {
+  font-family: var(--font-family-headings-exo2);
+  font-size: 0.95rem;
 }
-.menu-item:not(.v-list-item--active) .v-icon {
-  color: var(--v-theme-text-primary) !important;
+.admin-link .v-list-item-title {
+  /* color: var(--v-theme-primary); */
 }
-
-/* Hover stav pro neaktivní položky */
-.menu-item:not(.v-list-item--active):hover {
-  background-color: rgba(var(--v-theme-primary-rgb), 0.08);
-  border-left-color: var(--v-theme-primary);
+.spravce-link .v-list-item-title {
+   /* color: var(--v-theme-secondary); */
 }
-.menu-item:not(.v-list-item--active):hover .v-list-item-title,
-.menu-item:not(.v-list-item--active):hover .v-icon {
-  color: var(--v-theme-primary) !important;
-}
-
-/* Aktivní stav položky */
-.menu-item.v-list-item--active {
-  border-left-color: var(--v-theme-primary) !important;
-  background-color: rgba(var(--v-theme-primary-rgb), 0.12) !important;
-}
-.menu-item.v-list-item--active .v-list-item-title,
-.menu-item.v-list-item--active .v-icon {
-  color: var(--v-theme-primary) !important;
+.logo-item .v-list-item-title {
+ color: var(--v-theme-primary);
 }
 </style>

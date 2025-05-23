@@ -80,7 +80,7 @@ namespace RespawnApi.Migrations
                     GameType = table.Column<int>(type: "int", nullable: false),
                     DockerImage = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    ContainerId = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: false)
+                    ContainerId = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Status = table.Column<int>(type: "int", nullable: false),
                     Metrics = table.Column<string>(type: "json", nullable: true)
@@ -231,7 +231,7 @@ namespace RespawnApi.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Nickname = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    AvatarUrl = table.Column<string>(type: "varchar(500)", maxLength: 500, nullable: false)
+                    AvatarUrl = table.Column<string>(type: "varchar(500)", maxLength: 500, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4")
                 },
                 constraints: table =>
@@ -286,10 +286,11 @@ namespace RespawnApi.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     EndTime = table.Column<DateTime>(type: "datetime(6)", nullable: false),
                     IsClosed = table.Column<bool>(type: "tinyint(1)", nullable: false),
-                    ImageUrl = table.Column<string>(type: "varchar(500)", maxLength: 500, nullable: false)
+                    ImageUrl = table.Column<string>(type: "varchar(500)", maxLength: 500, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     CreatorUserId = table.Column<string>(type: "varchar(255)", nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    IsMultipleChoice = table.Column<bool>(type: "tinyint(1)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -374,9 +375,9 @@ namespace RespawnApi.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     UserId = table.Column<string>(type: "varchar(255)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    OptionId = table.Column<string>(type: "varchar(255)", nullable: false)
+                    OptionId = table.Column<string>(type: "varchar(36)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    PollId = table.Column<string>(type: "varchar(36)", nullable: false)
+                    PollId = table.Column<string>(type: "varchar(255)", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     TimeStamp = table.Column<DateTime>(type: "datetime(6)", nullable: false)
                 },
@@ -384,8 +385,8 @@ namespace RespawnApi.Migrations
                 {
                     table.PrimaryKey("PK_PollVotes", x => x.VoteId);
                     table.ForeignKey(
-                        name: "FK_PollVotes_PollOptions_PollId",
-                        column: x => x.PollId,
+                        name: "FK_PollVotes_PollOptions_OptionId",
+                        column: x => x.OptionId,
                         principalTable: "PollOptions",
                         principalColumn: "OptionId",
                         onDelete: ReferentialAction.Cascade);
@@ -396,8 +397,8 @@ namespace RespawnApi.Migrations
                         principalColumn: "PollId",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_PollVotes_UserProfiles_OptionId",
-                        column: x => x.OptionId,
+                        name: "FK_PollVotes_UserProfiles_UserId",
+                        column: x => x.UserId,
                         principalTable: "UserProfiles",
                         principalColumn: "UserId",
                         onDelete: ReferentialAction.Cascade);
@@ -482,10 +483,15 @@ namespace RespawnApi.Migrations
                 column: "OptionId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_PollVotes_PollId_UserId",
+                name: "IX_PollVotes_PollId_UserId_OptionId",
                 table: "PollVotes",
-                columns: new[] { "PollId", "UserId" },
+                columns: new[] { "PollId", "UserId", "OptionId" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PollVotes_UserId",
+                table: "PollVotes",
+                column: "UserId");
         }
 
         /// <inheritdoc />

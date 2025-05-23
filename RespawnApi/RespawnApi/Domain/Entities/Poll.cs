@@ -18,10 +18,13 @@ namespace RespawnApi.Domain.Entities
         public bool IsClosed { get; set; } = false; // poll is closed by default
 
         [MaxLength(500)]
-        public string ImageUrl { get; set; }
+        public string? ImageUrl { get; set; }
 
         [Required]
         public string CreatorUserId { get; set; } // foreign key UserProfile.UserId
+
+        [Required]
+        public bool IsMultipleChoice { get; set; } = false; // Nová vlastnost
 
         // navigation properties
         [ForeignKey(nameof(CreatorUserId))]

@@ -1,3 +1,4 @@
+// src/services/authService.ts
 import Swal, { type SweetAlertOptions } from 'sweetalert2'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -21,7 +22,7 @@ const getFuturisticSwalOptions = (title: string): SweetAlertOptions => {
       validationMessage: 'futuristic-swal-validation-message font-inter',
     },
     buttonsStyling: false,
-    allowEnterKey: true, // explicitní povolení Enter klávesy pro potvrzení
+    allowEnterKey: true,
     heightAuto: false,
   }
 }
@@ -51,29 +52,29 @@ export const displayLoginModal = async (): Promise<{
     html: `
       <div class="swal-form-container">
         <label for="swal-nickname" class="swal-label font-inter">Přezdívka</label>
-        <input id="swal-nickname" class="swal2-input futuristic-swal-input" placeholder="TvojePřezdívka" autocomplete="username">
+        <input id="swal-nickname" class="swal2-input futuristic-swal-input" placeholder="TvojePrezdivka" autocomplete="username">
 
         <label for="swal-password" class="swal-label font-inter">Heslo</label>
-        <input id="swal-password" type="password" class="swal2-input futuristic-swal-input" placeholder="••••••••" autocomplete="current-password">
+        <input id="swal-password" type="password" class="swal2-input futuristic-swal-input" placeholder="•••••" autocomplete="current-password">
       </div>
     `,
     focusConfirm: false,
     showCancelButton: true,
-    confirmButtonText: 'Přihlásit se',
-    cancelButtonText: 'Zrušit',
+    confirmButtonText: 'Prihlasit se',
+    cancelButtonText: 'Zrusit',
     allowOutsideClick: () => !Swal.isLoading(),
     showLoaderOnConfirm: true,
     didOpen: () => {
       const nicknameInput = document.getElementById('swal-nickname') as HTMLInputElement
       const passwordInput = document.getElementById('swal-password') as HTMLInputElement
 
-      nicknameInput?.focus() // Fokus na první pole
+      nicknameInput?.focus()
 
       const inputs = [nicknameInput, passwordInput]
       inputs.forEach((input) => {
         input?.addEventListener('keypress', (event) => {
           if (event.key === 'Enter') {
-            event.preventDefault() // Zabráníme výchozí akci (např. submit formuláře, pokud by byl)
+            event.preventDefault()
             Swal.clickConfirm()
           }
         })
@@ -83,13 +84,13 @@ export const displayLoginModal = async (): Promise<{
       const nicknameInput = document.getElementById('swal-nickname') as HTMLInputElement
       const passwordInput = document.getElementById('swal-password') as HTMLInputElement
       if (!nicknameInput || !passwordInput) {
-        Swal.showValidationMessage('Chyba při načítání formuláře')
+        Swal.showValidationMessage('Chyba pri nacitani formulare')
         return false
       }
       const nickname = nicknameInput.value
       const password = passwordInput.value
       if (!nickname || !password) {
-        Swal.showValidationMessage('Prosím, vyplňte přezdívku i heslo')
+        Swal.showValidationMessage('Prosim, vyplnte prezdivku i heslo')
         return false
       }
 
@@ -106,8 +107,8 @@ export const displayLoginModal = async (): Promise<{
         }
         return data
       } catch (error) {
-        console.error('Login API error:', error)
-        Swal.showValidationMessage('Došlo k chybě při komunikaci se serverem.')
+        console.error('Login API chyba:', error)
+        Swal.showValidationMessage('Doslo k chybe pri komunikaci se serverem.')
         return false
       }
     },
@@ -117,9 +118,9 @@ export const displayLoginModal = async (): Promise<{
     const authData = formValues as AuthResponse
     authStore.setAuthData(authData.token, authData.userInfo, authData.expiresAt)
     Swal.fire({
-      ...getFuturisticSwalOptions('Úspěch!'),
+      ...getFuturisticSwalOptions('Uspech!'),
       icon: 'success',
-      text: `Vítej zpět, ${authData.userInfo.nickname}!`,
+      text: `Vitej zpet, ${authData.userInfo.nickname}!`,
       timer: 2000,
       showConfirmButton: false,
     })
@@ -138,23 +139,23 @@ export const displayRegisterModal = async (): Promise<{
     ...getFuturisticSwalOptions('Registrace'),
     html: `
       <div class="swal-form-container">
-        <label for="swal-reg-nickname" class="swal-label font-inter">Přezdívka</label>
-        <input id="swal-reg-nickname" class="swal2-input futuristic-swal-input" placeholder="TvojePřezdívka" autocomplete="username">
+        <label for="swal-reg-nickname" class="swal-label font-inter">Prezdivka</label>
+        <input id="swal-reg-nickname" class="swal2-input futuristic-swal-input" placeholder="TvojePrezdivka" autocomplete="username">
 
         <label for="swal-reg-email" class="swal-label font-inter">Email</label>
         <input id="swal-reg-email" type="email" class="swal2-input futuristic-swal-input" placeholder="email@example.com" autocomplete="email">
 
         <label for="swal-reg-password" class="swal-label font-inter">Heslo</label>
-        <input id="swal-reg-password" type="password" class="swal2-input futuristic-swal-input" placeholder="Min. 8 znaků, velká/malá písmena, číslice" autocomplete="new-password">
+        <input id="swal-reg-password" type="password" class="swal2-input futuristic-swal-input" placeholder="Min. 5 znaku, cislo, male pismeno" autocomplete="new-password">
 
-        <label for="swal-reg-confirm-password" class="swal-label font-inter">Potvrzení hesla</label>
-        <input id="swal-reg-confirm-password" type="password" class="swal2-input futuristic-swal-input" placeholder="••••••••" autocomplete="new-password">
+        <label for="swal-reg-confirm-password" class="swal-label font-inter">Potvrzeni hesla</label>
+        <input id="swal-reg-confirm-password" type="password" class="swal2-input futuristic-swal-input" placeholder="•••••" autocomplete="new-password">
       </div>
     `,
     focusConfirm: false,
     showCancelButton: true,
     confirmButtonText: 'Zaregistrovat se',
-    cancelButtonText: 'Zrušit',
+    cancelButtonText: 'Zrusit',
     allowOutsideClick: () => !Swal.isLoading(),
     showLoaderOnConfirm: true,
     didOpen: () => {
@@ -165,7 +166,7 @@ export const displayRegisterModal = async (): Promise<{
         'swal-reg-confirm-password',
       ) as HTMLInputElement
 
-      nicknameInput?.focus() // Fokus na první pole
+      nicknameInput?.focus()
 
       const inputs = [nicknameInput, emailInput, passwordInput, confirmPasswordInput]
       inputs.forEach((input) => {
@@ -186,7 +187,7 @@ export const displayRegisterModal = async (): Promise<{
       ) as HTMLInputElement
 
       if (!nicknameInput || !emailInput || !passwordInput || !confirmPasswordInput) {
-        Swal.showValidationMessage('Chyba při načítání formuláře')
+        Swal.showValidationMessage('Chyba pri nacitani formulare')
         return false
       }
       const nickname = nicknameInput.value
@@ -195,16 +196,33 @@ export const displayRegisterModal = async (): Promise<{
       const confirmPassword = confirmPasswordInput.value
 
       if (!nickname || !email || !password || !confirmPassword) {
-        Swal.showValidationMessage('Prosím, vyplňte všechna pole')
+        Swal.showValidationMessage('Prosim, vyplnte vsechna pole')
         return false
       }
+      // Validace hesla na frontendu (základní)
+      if (password.length < 5) {
+        Swal.showValidationMessage('Heslo musi mit alespon 5 znaku.');
+        return false;
+      }
+      if (!/\d/.test(password)) {
+        Swal.showValidationMessage('Heslo musi obsahovat alespon jednu cislici.');
+        return false;
+      }
+      if (!/[a-z]/.test(password)) {
+        Swal.showValidationMessage('Heslo musi obsahovat alespon jedno male pismeno.');
+        return false;
+      }
+      // Odebráno: if (/[A-Z]/.test(password)) - velké písmeno není vyžadováno
+      // Odebráno: if (/\W/.test(password)) - speciální znak není vyžadován
+
       if (password !== confirmPassword) {
-        Swal.showValidationMessage('Hesla se neshodují')
+        Swal.showValidationMessage('Hesla se neshoduji')
         passwordInput.value = ''
         confirmPasswordInput.value = ''
         passwordInput.focus()
         return false
       }
+
 
       try {
         const response = await fetch(`${API_BASE_URL}/register`, {
@@ -219,8 +237,8 @@ export const displayRegisterModal = async (): Promise<{
         }
         return data
       } catch (error) {
-        console.error('Register API error:', error)
-        Swal.showValidationMessage('Došlo k chybě při komunikaci se serverem.')
+        console.error('Register API chyba:', error)
+        Swal.showValidationMessage('Doslo k chybe pri komunikaci se serverem.')
         return false
       }
     },
@@ -229,12 +247,13 @@ export const displayRegisterModal = async (): Promise<{
   if (isConfirmed && formValues) {
     const authData = formValues as AuthResponse
     if (authData.token && authData.userInfo) {
+      // Po úspěšné registraci se uživatel rovnou přihlásí
       authStore.setAuthData(authData.token, authData.userInfo, authData.expiresAt)
     }
     Swal.fire({
-      ...getFuturisticSwalOptions('Registrace úspěšná!'),
+      ...getFuturisticSwalOptions('Registrace uspesna!'),
       icon: 'success',
-      text: authData.message || `Vítej, ${authData.userInfo.nickname}! Byl jsi zaregistrován.`,
+      text: authData.message || `Vitej, ${authData.userInfo.nickname}! Byl jsi zaregistrovan.`,
       timer: 2500,
       showConfirmButton: false,
     })
@@ -242,3 +261,4 @@ export const displayRegisterModal = async (): Promise<{
   }
   return null
 }
+

@@ -21,13 +21,13 @@ namespace RespawnApi.Domain.Entities
         [Required] public DateTime TimeStamp { get; set; } = DateTime.UtcNow; // timestamp of the vote
 
         // navigation properties
+        [ForeignKey(nameof(UserId))]
+        public UserProfile? User { get; set; } // navigation property to UserProfile
+
         [ForeignKey(nameof(OptionId))]
-        public UserProfile User { get; set; } // navigation property to UserProfile
+        public PollOption? Option { get; set; } // navigation property to PollOption
 
         [ForeignKey(nameof(PollId))]
-        public PollOption Option { get; set; } // navigation property to PollOption
-
-        [ForeignKey(nameof(PollId))]
-        public Poll Poll { get; set; } // navigation property to Poll
+        public Poll? Poll { get; set; } // navigation property to Poll
     }
 }

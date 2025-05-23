@@ -2,8 +2,6 @@
 {
     public enum GameType
     {
-        CSGO = 1,
-        Minecraft = 2,
-        // ......
+        CS = 1 // counter-strike 1.6 - linuxgsm má tag: gameserver:cs!!!
     }
 }

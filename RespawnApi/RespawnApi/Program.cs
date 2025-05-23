@@ -40,14 +40,19 @@ builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
 {
     options.Password.RequireDigit = true; // vyžaduje číslice
     options.Password.RequireLowercase = true; // vyžaduje malá písmena
-    options.Password.RequireUppercase = true; // vyžaduje velká písmena
+    options.Password.RequireUppercase = false; // nevyžaduje velká písmena
     options.Password.RequireNonAlphanumeric = false; // nevyžaduje speciální znaky
-    options.Password.RequiredLength = 4; // minimální délka hesla
+    options.Password.RequiredLength = 5; // minimální délka hesla
 
     options.User.RequireUniqueEmail = true; // vyžaduje unikátní email
 })
 .AddEntityFrameworkStores<RespawnDbContext>() // přidání DbContextu
 .AddDefaultTokenProviders(); // přidání výchozích poskytovatelů tokenů
+
+// role
+builder.Services.AddIdentityCore<IdentityUser>()
+    .AddRoles<IdentityRole>()
+    .AddEntityFrameworkStores<RespawnDbContext>();
 
 // konfigurace jwt tokenů
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
@@ -111,6 +116,84 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        var userManager = services.GetRequiredService<UserManager<IdentityUser>>();
+        var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
+        await SeedRolesAndAdminAsync(userManager, roleManager, logger, services);
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Chyba pri seedovani databaze.");
+    }
+}
+
+// Metoda pro seedovani
+async Task SeedRolesAndAdminAsync(UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager, ILogger<Program> logger, IServiceProvider services)
+{
+    string[] roleNames = { RespawnApi.Domain.Enums.UserRoles.Administrator, RespawnApi.Domain.Enums.UserRoles.Spravce, RespawnApi.Domain.Enums.UserRoles.Uzivatel };
+    foreach (var roleName in roleNames)
+    {
+        var roleExist = await roleManager.RoleExistsAsync(roleName);
+        if (!roleExist)
+        {
+            await roleManager.CreateAsync(new IdentityRole(roleName));
+            logger.LogInformation("Role '{RoleName}' byla vytvorena.", roleName);
+        }
+    }
+
+    var adminUser = await userManager.FindByNameAsync("patricek");
+    if (adminUser == null)
+    {
+        var newAdmin = new IdentityUser
+        {
+            UserName = "patricek",
+            Email = "patrik.mrnka12@gmail.com",
+            EmailConfirmed = true
+        };
+        var createAdminResult = await userManager.CreateAsync(newAdmin, "a1234");
+        if (createAdminResult.Succeeded)
+        {
+            await userManager.AddToRoleAsync(newAdmin, RespawnApi.Domain.Enums.UserRoles.Administrator);
+            logger.LogInformation("Uzivatel 'patricek' byl vytvoren a prirazen do role Administrator.");
+
+            // Vytvoření UserProfile pro admina
+            var userProfileRepository = services.GetRequiredService<RespawnApi.DataAccess.Interfaces.IUserProfileRepository>();
+            var adminProfile = new RespawnApi.Domain.Entities.UserProfile
+            {
+                UserId = newAdmin.Id,
+                Nickname = newAdmin.UserName,
+                AvatarUrl = null // Nebo výchozí URL
+            };
+            await userProfileRepository.AddAsync(adminProfile);
+            logger.LogInformation("UserProfile pro 'patricek' byl vytvoren.");
+        }
+        else
+        {
+            foreach (var error in createAdminResult.Errors)
+            {
+                logger.LogError("Chyba pri vytvareni uzivatele 'patricek': {ErrorDescription}", error.Description);
+            }
+        }
+    }
+    else
+    {
+        logger.LogInformation("Uzivatel 'patricek' jiz existuje.");
+        // Ujistete se, ze existujici patricek je admin
+        if (!await userManager.IsInRoleAsync(adminUser, RespawnApi.Domain.Enums.UserRoles.Administrator))
+        {
+            await userManager.AddToRoleAsync(adminUser, RespawnApi.Domain.Enums.UserRoles.Administrator);
+            logger.LogInformation("Uzivatel 'patricek' byl prirazen do role Administrator.");
+        }
+    }
+}
+
+
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -118,7 +201,7 @@ if (app.Environment.IsDevelopment())
 }
 
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 
 app.UseCors("AllowRespawnApp"); // použití CORS policy
 

@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RespawnApi.Domain.Entities
 {
@@ -18,6 +19,7 @@ namespace RespawnApi.Domain.Entities
         public string PollId { get; set; } // foreign key to Poll
 
         // navigation properties
+        [ForeignKey(nameof(PollId))]
         public Poll Poll { get; set; }
         public ICollection<PollVote> PollVotes { get; set; } = new List<PollVote>(); // navigation property to PollVote
     }

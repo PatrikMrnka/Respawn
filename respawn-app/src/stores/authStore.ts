@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import Swal from 'sweetalert2'
 
-interface UserInfo {
+export interface UserInfo {
   id: string
   nickname: string
   email: string

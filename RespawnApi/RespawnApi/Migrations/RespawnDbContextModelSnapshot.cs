@@ -228,7 +228,6 @@ namespace RespawnApi.Migrations
                         .HasColumnType("json");
 
                     b.Property<string>("ContainerId")
-                        .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
 
@@ -334,11 +333,13 @@ namespace RespawnApi.Migrations
                         .HasColumnType("datetime(6)");
 
                     b.Property<string>("ImageUrl")
-                        .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
 
                     b.Property<bool>("IsClosed")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("IsMultipleChoice")
                         .HasColumnType("tinyint(1)");
 
                     b.Property<string>("Question")
@@ -385,11 +386,11 @@ namespace RespawnApi.Migrations
 
                     b.Property<string>("OptionId")
                         .IsRequired()
-                        .HasColumnType("varchar(255)");
+                        .HasColumnType("varchar(36)");
 
                     b.Property<string>("PollId")
                         .IsRequired()
-                        .HasColumnType("varchar(36)");
+                        .HasColumnType("varchar(255)");
 
                     b.Property<DateTime>("TimeStamp")
                         .HasColumnType("datetime(6)");
@@ -402,7 +403,9 @@ namespace RespawnApi.Migrations
 
                     b.HasIndex("OptionId");
 
-                    b.HasIndex("PollId", "UserId")
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("PollId", "UserId", "OptionId")
                         .IsUnique();
 
                     b.ToTable("PollVotes");
@@ -542,21 +545,21 @@ namespace RespawnApi.Migrations
 
             modelBuilder.Entity("RespawnApi.Domain.Entities.PollVote", b =>
                 {
-                    b.HasOne("RespawnApi.Domain.Entities.UserProfile", "User")
-                        .WithMany("PollVotes")
-                        .HasForeignKey("OptionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("RespawnApi.Domain.Entities.PollOption", "Option")
                         .WithMany("PollVotes")
-                        .HasForeignKey("PollId")
+                        .HasForeignKey("OptionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("RespawnApi.Domain.Entities.Poll", "Poll")
                         .WithMany("PollVotes")
                         .HasForeignKey("PollId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RespawnApi.Domain.Entities.UserProfile", "User")
+                        .WithMany("PollVotes")
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

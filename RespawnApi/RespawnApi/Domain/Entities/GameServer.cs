@@ -21,12 +21,11 @@ namespace RespawnApi.Domain.Entities
         [MaxLength(100)]
         public string DockerImage { get; set; } // Docker image for the server
 
-        [Required]
         [MaxLength(100)]
         public string? ContainerId { get; set; } // Docker container ID
 
         [Required]
-        public ServerStatus Status { get; set; } = ServerStatus.NOTINSTALLED; // status of the server
+        public ServerStatus Status { get; set; } = ServerStatus.NOT_INSTALLED; // status of the server
 
         [Column(TypeName = "json")]
         public string? Metrics { get; set; } // JSON metrics data

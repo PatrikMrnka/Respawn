@@ -65,8 +65,17 @@ namespace RespawnApi.Controllers
             if (!result.Succeeded)
             {
                 var errors = result.Errors.Select(e => e.Description);
+                _logger.LogWarning("Neuspesna registrace pro email {UserEmail}. Chyby: {Errors}", registerDto.Email, string.Join(", ", errors));
                 return BadRequest(new AuthResponseDto { IsSuccess = false, Message = string.Join(", ", errors), UserInfo = null });
             }
+
+            // Prirazeni defaultni role "Uzivatel"
+            var roleResult = await _userManager.AddToRoleAsync(newUser, RespawnApi.Domain.Enums.UserRoles.Uzivatel);
+            if (!roleResult.Succeeded)
+            {
+                _logger.LogError("Nepodarilo se priradit roli Uzivatel uzivateli {UserName}.", newUser.UserName);
+            }
+
 
             // Vytvoření UserProfile
             var userProfile = new UserProfile
@@ -77,10 +86,8 @@ namespace RespawnApi.Controllers
             };
             await _userProfileRepository.AddAsync(userProfile);
 
-            // TODO: Přiřadit výchozí roli (např. "User")
-            // await _userManager.AddToRoleAsync(newUser, "User");
 
-            _logger.LogInformation($"Uživatel {newUser.UserName} byl úspěšně zaregistrován.");
+            _logger.LogInformation("Uzivatel {UserName} byl uspesne zaregistrovan a byla mu prirazena role Uzivatel.", newUser.UserName);
 
             var tokenResponse = await _tokenService.GenerateTokenAsync(newUser, userProfile);
             tokenResponse.Message = "Registrace byla úspěšná.";
