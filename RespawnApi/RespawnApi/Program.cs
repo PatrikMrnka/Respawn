@@ -8,6 +8,7 @@ using RespawnApi.Application.Services;
 using RespawnApi.Data;
 using RespawnApi.DataAccess.Interfaces;
 using RespawnApi.DataAccess.Repositories;
+using RespawnApi.Hubs; // <-- Přidáno: using pro PollHub
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,16 +17,17 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowRespawnApp", policyBuilder =>
     {
-        policyBuilder.WithOrigins("http://localhost:5173") // Adresa frontend serverú
+        policyBuilder.WithOrigins("http://localhost:5173") // Adresa frontend serveru
                      .AllowAnyHeader()
-                     .AllowAnyMethod();
+                     .AllowAnyMethod()
+                     .AllowCredentials(); // <-- Přidáno: Povolení credentials pro SignalR s tokenem
     });
 });
 
 // connection to database
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-var serverVersionsString = builder.Configuration["MySqlSettings:ServerVersion"] ?? "10.3.32";
-var serverVersion = new MySqlServerVersion(new Version(serverVersionsString));
+var serverVersionsString = builder.Configuration["MySqlSettings:ServerVersion"] ?? "10.3.32"; // Použijte verzi z konfigurace nebo výchozí
+var serverVersion = new MySqlServerVersion(new Version(serverVersionsString)); // Ujistěte se, že verze je správná pro vaši DB
 
 builder.Services.AddDbContext<RespawnDbContext>(options =>
     options.UseMySql(connectionString, serverVersion, mySqlOptions =>
@@ -35,26 +37,22 @@ builder.Services.AddDbContext<RespawnDbContext>(options =>
             errorNumbersToAdd: null)
         ));
 
-// pridani identity pro autentizaci
 builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
 {
-    options.Password.RequireDigit = true; // vyžaduje číslice
-    options.Password.RequireLowercase = true; // vyžaduje malá písmena
-    options.Password.RequireUppercase = false; // nevyžaduje velká písmena
-    options.Password.RequireNonAlphanumeric = false; // nevyžaduje speciální znaky
-    options.Password.RequiredLength = 5; // minimální délka hesla
-
-    options.User.RequireUniqueEmail = true; // vyžaduje unikátní email
+    options.Password.RequireDigit = true;
+    options.Password.RequireLowercase = true;
+    options.Password.RequireUppercase = false;
+    options.Password.RequireNonAlphanumeric = false;
+    options.Password.RequiredLength = 5;
+    options.User.RequireUniqueEmail = true;
 })
-.AddEntityFrameworkStores<RespawnDbContext>() // přidání DbContextu
-.AddDefaultTokenProviders(); // přidání výchozích poskytovatelů tokenů
+.AddEntityFrameworkStores<RespawnDbContext>()
+.AddDefaultTokenProviders();
 
-// role
 builder.Services.AddIdentityCore<IdentityUser>()
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<RespawnDbContext>();
 
-// konfigurace jwt tokenů
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var key = Encoding.ASCII.GetBytes(jwtSettings["Key"] ??
                                   throw new InvalidOperationException("JWT Key not found configuration."));
@@ -68,7 +66,7 @@ builder.Services.AddAuthentication(options =>
 .AddJwtBearer(options =>
 {
     options.SaveToken = true;
-    options.RequireHttpsMetadata = false; // pro vývojové prostředí -> v produkci by mělo být true
+    options.RequireHttpsMetadata = false;
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -78,7 +76,22 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = jwtSettings["Issuer"],
         ValidAudience = jwtSettings["Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(key),
-        ClockSkew = TimeSpan.Zero // Odebere výchozí 5minutovou toleranci
+        ClockSkew = TimeSpan.Zero
+    };
+
+    // Pro SignalR autentizaci přes query string (pokud prohlížeč nepodporuje odeslání Auth headeru pro WebSockets)
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/pollHub")) // Cesta k vašemu SignalR hubu
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
     };
 });
 
@@ -88,7 +101,9 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 
 builder.Services.AddControllers();
 
-// Swagger
+// Přidání SignalR služeb
+builder.Services.AddSignalR(); // <-- Přidáno
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -132,7 +147,6 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// Metoda pro seedovani
 async Task SeedRolesAndAdminAsync(UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager, ILogger<Program> logger, IServiceProvider services)
 {
     string[] roleNames = { RespawnApi.Domain.Enums.UserRoles.Administrator, RespawnApi.Domain.Enums.UserRoles.Spravce, RespawnApi.Domain.Enums.UserRoles.Uzivatel };
@@ -160,30 +174,24 @@ async Task SeedRolesAndAdminAsync(UserManager<IdentityUser> userManager, RoleMan
         {
             await userManager.AddToRoleAsync(newAdmin, RespawnApi.Domain.Enums.UserRoles.Administrator);
             logger.LogInformation("Uzivatel 'patricek' byl vytvoren a prirazen do role Administrator.");
-
-            // Vytvoření UserProfile pro admina
             var userProfileRepository = services.GetRequiredService<RespawnApi.DataAccess.Interfaces.IUserProfileRepository>();
             var adminProfile = new RespawnApi.Domain.Entities.UserProfile
             {
                 UserId = newAdmin.Id,
-                Nickname = newAdmin.UserName,
-                AvatarUrl = null // Nebo výchozí URL
+                Nickname = newAdmin.UserName!, // UserName by neměl být null po úspěšném vytvoření
+                AvatarUrl = null
             };
             await userProfileRepository.AddAsync(adminProfile);
             logger.LogInformation("UserProfile pro 'patricek' byl vytvoren.");
         }
         else
         {
-            foreach (var error in createAdminResult.Errors)
-            {
-                logger.LogError("Chyba pri vytvareni uzivatele 'patricek': {ErrorDescription}", error.Description);
-            }
+            foreach (var error in createAdminResult.Errors) { logger.LogError("Chyba pri vytvareni uzivatele 'patricek': {ErrorDescription}", error.Description); }
         }
     }
     else
     {
         logger.LogInformation("Uzivatel 'patricek' jiz existuje.");
-        // Ujistete se, ze existujici patricek je admin
         if (!await userManager.IsInRoleAsync(adminUser, RespawnApi.Domain.Enums.UserRoles.Administrator))
         {
             await userManager.AddToRoleAsync(adminUser, RespawnApi.Domain.Enums.UserRoles.Administrator);
@@ -192,22 +200,18 @@ async Task SeedRolesAndAdminAsync(UserManager<IdentityUser> userManager, RoleMan
     }
 }
 
-
-
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
+app.UseCors("AllowRespawnApp");
 
-//app.UseHttpsRedirection();
-
-app.UseCors("AllowRespawnApp"); // použití CORS policy
-
-app.UseAuthentication();
+app.UseAuthentication(); // Musí být před UseAuthorization
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<PollHub>("/pollHub"); // <-- Přidáno: Mapování SignalR Hubu
 
 app.Run();

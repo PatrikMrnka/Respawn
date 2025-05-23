@@ -11,25 +11,23 @@
       </v-col>
     </v-row>
 
-    <v-progress-linear v-if="loading" indeterminate color="primary" class="mb-4"></v-progress-linear>
-    <v-alert v-if="error" type="error" prominent class="mb-4 font-inter">{{ error }}</v-alert>
+     <v-alert v-if="signalRError" type="warning" density="compact" class="mb-4 font-inter" closable @click:close="signalRError = null">
+      Chyba real-time spojení: {{ signalRError }}. Data se nemusí aktualizovat automaticky.
+      <v-btn variant="text" size="small" @click="attemptReconnect" :loading="reconnectingSignalR">Zkusit znovu</v-btn>
+    </v-alert>
 
-    <div v-if="!loading && polls.length === 0 && !error" class="text-center pa-8">
+    <v-progress-linear v-if="loading" indeterminate color="primary" class="mb-4"></v-progress-linear>
+    <v-alert v-if="apiError" type="error" prominent class="mb-4 font-inter">{{ apiError }}</v-alert>
+
+    <div v-if="!loading && polls.length === 0 && !apiError" class="text-center pa-8">
         <v-icon :icon="mdiPoll" size="64" color="grey-darken-1"></v-icon>
         <p class="text-h6 font-inter mt-4 text-grey-darken-1">Zatím nebyly vytvořeny žádné ankety.</p>
         <p class="font-inter text-grey-darken-1">Buďte první a vytvořte novou anketu!</p>
     </div>
 
-
     <v-row justify="center" v-if="!loading && polls.length > 0">
-      <v-col
-        v-for="poll in sortedPolls"
-        :key="poll.pollId"
-        cols="12"
-        md="10"
-        lg="8"
-      >
-        <v-card class="futuristic-card poll-card mb-6" :class="{ 'closed-poll': poll.isClosed || userHasVoted(poll.pollId) }">
+      <v-col v-for="poll in sortedPolls" :key="poll.pollId" cols="12" md="10" lg="8">
+        <v-card class="futuristic-card poll-card mb-6" :class="{ 'closed-poll': isPollEffectivelyClosed(poll) }">
           <v-img v-if="poll.imageUrl" :src="poll.imageUrl" height="180px" cover class="poll-image">
             <template v-slot:placeholder>
               <v-row class="fill-height ma-0" align="center" justify="center">
@@ -43,19 +41,19 @@
                 </v-row>
             </template>
           </v-img>
-          <v-chip v-if="poll.isClosed" color="grey" label small class="status-chip font-exo2">Uzavřeno</v-chip>
+          <v-chip v-if="isPollEffectivelyClosed(poll)" color="grey" label small class="status-chip font-exo2">Uzavřeno</v-chip>
           <v-chip v-else-if="userHasVoted(poll.pollId)" color="info" label small class="status-chip font-exo2">Hlasováno</v-chip>
           <v-chip v-else color="success" label small class="status-chip font-exo2">Aktivní</v-chip>
 
           <v-card-title class="font-exo2 poll-question pt-4">{{ poll.question }}</v-card-title>
           <v-card-subtitle class="pb-0 font-inter">
             Vytvořil: {{ poll.creatorNickname || poll.creatorUserId }} |
-            Konec: <span :title="formatFullDateTime(poll.endTime)">{{ formatRelativeTime(poll.endTime) }}</span>
+            Konec: <span :title="formatFullDateTime(poll.endTime)">{{ formatRelativeTime(poll.endTime, currentTime) }}</span>
             <span v-if="poll.isMultipleChoice" class="ml-2">(Možnost více odpovědí)</span>
           </v-card-subtitle>
 
           <v-card-text class="pt-3">
-            <div v-if="!poll.isClosed && !userHasVoted(poll.pollId) && poll.options && poll.options.length > 0">
+            <div v-if="!isPollEffectivelyClosed(poll) && !userHasVoted(poll.pollId) && poll.options && poll.options.length > 0">
               <v-radio-group
                 v-if="!poll.isMultipleChoice"
                 v-model="selectedOptions[poll.pollId]"
@@ -109,11 +107,11 @@
                 Hlasovat
               </v-btn>
             </div>
-            <div v-else-if="!poll.isClosed && !userHasVoted(poll.pollId) && (!poll.options || poll.options.length === 0)" class="font-inter text-grey-darken-1">
+            <div v-else-if="!isPollEffectivelyClosed(poll) && !userHasVoted(poll.pollId) && (!poll.options || poll.options.length === 0)" class="font-inter text-grey-darken-1">
                 Tato anketa zatím nemá žádné možnosti hlasování.
             </div>
 
-            <div v-if="poll.isClosed || userHasVoted(poll.pollId)" class="results-section">
+            <div v-if="isPollEffectivelyClosed(poll) || userHasVoted(poll.pollId)" class="results-section">
               <p class="font-inter mb-2 text-h6">Výsledky (Celkem hlasů: {{ poll.totalVotes || 0 }}):</p>
               <div v-if="!poll.options || poll.options.length === 0" class="font-inter text-grey-darken-1">
                 Pro tuto anketu nebyly k dispozici žádné možnosti hlasování.
@@ -157,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, reactive } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, reactive } from 'vue';
 import Swal, {type SweetAlertOptions} from 'sweetalert2';
 import { useAuthStore } from '@/stores/authStore';
 import { UserRoles } from '@/types/enums';
@@ -165,27 +163,119 @@ import {
   getAllPolls, createPoll, updatePoll, deletePoll, submitVote,
   type Poll, type PollOption, type CreatePollDto, type UpdatePollDto, type UpdatePollOptionPayload
 } from '@/services/pollService';
+import { signalRService } from '@/services/signalrService';
 import {
     mdiPlusBox, mdiPoll, mdiPencil, mdiDelete, mdiImageOutline, mdiImageBrokenVariant,
     mdiCalendarClock, mdiImage, mdiCheckboxMultipleBlankOutline, mdiFormatListBulletedSquare, mdiHelpCircleOutline,
-    mdiCheckCircle, mdiTrashCanOutline // Ikona pro smazání možnosti
+    mdiCheckCircle, mdiTrashCanOutline
 } from '@mdi/js';
 
 const authStore = useAuthStore();
 const polls = ref<Poll[]>([]);
 const loading = ref(true);
-const error = ref<string | null>(null);
+const apiError = ref<string | null>(null);
+const signalRError = ref<string | null>(null);
+const reconnectingSignalR = ref(false);
 
 const selectedOptions = reactive<Record<string, string | string[]>>({});
 const votingStates = reactive<Record<string, boolean>>({});
 
+const currentTime = ref(new Date());
+let timeInterval: number | undefined;
+
+const updateCurrentTimeAndPollsStatus = () => {
+  currentTime.value = new Date();
+  polls.value.forEach((poll) => { // Není třeba index, protože Vue reaktivita sleduje změny v objektech pole
+    if (!poll.isClosed && new Date(poll.endTime) <= currentTime.value) {
+      poll.isClosed = true; // Optimistická aktualizace na frontendu
+    }
+  });
+};
+
+// SignalR Handlery
+const handleReceivePollUpdate = (updatedPollFromSignalR: Poll) => {
+  console.log('SignalR: ReceivePollUpdate', updatedPollFromSignalR);
+  const index = polls.value.findIndex(p => p.pollId === updatedPollFromSignalR.pollId);
+
+  if (index !== -1) {
+    const existingPoll = polls.value[index];
+    const mergedUserVotedOptionIds =
+      (updatedPollFromSignalR.userVotedOptionIds && updatedPollFromSignalR.userVotedOptionIds.length > 0)
+        ? updatedPollFromSignalR.userVotedOptionIds
+        : existingPoll.userVotedOptionIds;
+
+    // isClosed z SignalR má přednost, nebo se odvodí z endTime, pokud není explicitně v datech
+    const isNowClosedBySignalR = updatedPollFromSignalR.isClosed || (updatedPollFromSignalR.endTime && new Date(updatedPollFromSignalR.endTime) <= new Date());
+
+    polls.value[index] = {
+      ...existingPoll,
+      ...updatedPollFromSignalR,
+      isClosed: isNowClosedBySignalR,
+      userVotedOptionIds: mergedUserVotedOptionIds,
+    };
+
+    const finalPollState = polls.value[index];
+    if (finalPollState.userVotedOptionIds && finalPollState.userVotedOptionIds.length > 0) {
+      selectedOptions[finalPollState.pollId] = finalPollState.isMultipleChoice
+        ? [...finalPollState.userVotedOptionIds]
+        : (finalPollState.userVotedOptionIds[0] || '');
+    } else {
+      selectedOptions[finalPollState.pollId] = finalPollState.isMultipleChoice ? [] : '';
+    }
+  } else {
+    polls.value.unshift(updatedPollFromSignalR);
+    selectedOptions[updatedPollFromSignalR.pollId] = updatedPollFromSignalR.isMultipleChoice
+      ? []
+      : (updatedPollFromSignalR.userVotedOptionIds && updatedPollFromSignalR.userVotedOptionIds.length > 0 ? updatedPollFromSignalR.userVotedOptionIds[0] : '');
+  }
+};
+
+const handleReceivePollDelete = (pollId: string) => {
+  console.log('SignalR: ReceivePollDelete', pollId);
+  polls.value = polls.value.filter(p => p.pollId !== pollId);
+  delete selectedOptions[pollId];
+  delete votingStates[pollId];
+};
+
+const handleReceiveVoteUpdate = (updatedPoll: Poll) => {
+  console.log('SignalR: ReceiveVoteUpdate', updatedPoll);
+  handleReceivePollUpdate(updatedPoll);
+};
+
+const setupSignalRListeners = () => {
+    signalRService.on("ReceivePollUpdate", handleReceivePollUpdate);
+    signalRService.on("ReceivePollDelete", handleReceivePollDelete);
+    signalRService.on("ReceiveVoteUpdate", handleReceiveVoteUpdate);
+};
+
+const removeSignalRListeners = () => {
+    signalRService.off("ReceivePollUpdate", handleReceivePollUpdate);
+    signalRService.off("ReceivePollDelete", handleReceivePollDelete);
+    signalRService.off("ReceiveVoteUpdate", handleReceiveVoteUpdate);
+};
+
+const attemptReconnect = async () => {
+    if (signalRService.getConnectionState() === 'Disconnected' || signalRService.getConnectionState() === null) {
+        reconnectingSignalR.value = true;
+        signalRError.value = null;
+        try {
+            await signalRService.startConnection();
+        } catch (err: any) {
+            signalRError.value = err.message || "Nepodařilo se znovu připojit k real-time službě.";
+        } finally {
+            reconnectingSignalR.value = false;
+        }
+    }
+};
+
 const fetchPolls = async () => {
   loading.value = true;
-  error.value = null;
+  apiError.value = null;
   try {
     const data = await getAllPolls();
     polls.value = data.map(poll => ({
         ...poll,
+        isClosed: poll.isClosed || new Date(poll.endTime) <= new Date(),
         userVotedOptionIds: poll.userVotedOptionIds || []
     }));
     data.forEach(poll => {
@@ -195,29 +285,52 @@ const fetchPolls = async () => {
             selectedOptions[poll.pollId] = poll.isMultipleChoice ? [] : '';
         }
     });
+    updateCurrentTimeAndPollsStatus();
   } catch (err: any) {
-    error.value = err.message || 'Nepodařilo se načíst ankety.';
+    apiError.value = err.message || 'Nepodařilo se načíst ankety.';
   } finally {
     loading.value = false;
   }
 };
 
-onMounted(fetchPolls);
+onMounted(async () => {
+  await fetchPolls();
+  timeInterval = window.setInterval(updateCurrentTimeAndPollsStatus, 1000); // Změněno na 1 sekundu
+  try {
+    await signalRService.startConnection();
+    setupSignalRListeners();
+  } catch (err: any) {
+    signalRError.value = err.message || "Nepodařilo se připojit k real-time službě.";
+    console.error("SignalR connection error on mount:", err);
+  }
+});
+
+onBeforeUnmount(() => {
+  if (timeInterval) clearInterval(timeInterval);
+  removeSignalRListeners();
+  signalRService.stopConnection();
+});
+
+const isPollEffectivelyClosed = (poll: Poll): boolean => {
+    // Používáme přímo poll.isClosed, které je aktualizováno v updateCurrentTimeAndPollsStatus
+    // nebo přes SignalR. currentTime.value je pro formatRelativeTime.
+    return poll.isClosed || new Date(poll.endTime) <= currentTime.value;
+};
 
 const sortedPolls = computed(() => {
   return [...polls.value].sort((a, b) => {
-    const aIsEffectivelyClosed = a.isClosed || userHasVoted(a.pollId);
-    const bIsEffectivelyClosed = b.isClosed || userHasVoted(b.pollId);
+    const aIsEffectivelyClosed = isPollEffectivelyClosed(a);
+    const bIsEffectivelyClosed = isPollEffectivelyClosed(b);
     if (aIsEffectivelyClosed && !bIsEffectivelyClosed) return 1;
     if (!aIsEffectivelyClosed && bIsEffectivelyClosed) return -1;
     return new Date(b.endTime).getTime() - new Date(a.endTime).getTime();
   });
 });
 
-const formatRelativeTime = (isoDateTime: string): string => {
+const formatRelativeTime = (isoDateTime: string, now: Date): string => {
     const date = new Date(isoDateTime);
-    const now = new Date();
     const diffSeconds = Math.round((date.getTime() - now.getTime()) / 1000);
+
     if (diffSeconds < -60) {
         const diffMinutesAbs = Math.abs(Math.round(diffSeconds / 60));
         const diffHoursAbs = Math.abs(Math.round(diffMinutesAbs / 60));
@@ -229,7 +342,8 @@ const formatRelativeTime = (isoDateTime: string): string => {
         if (diffMinutesAbs > 1) return `skončila před ${diffMinutesAbs} minutami`;
         return "skončila před chvílí";
     }
-    if (diffSeconds < 0) return "právě končí";
+    if (diffSeconds <= 0) return "právě skončila";
+
     const rtf = new Intl.RelativeTimeFormat('cs', { numeric: 'auto' });
     const days = Math.floor(diffSeconds / (3600 * 24));
     if (days > 1) return rtf.format(days, 'day');
@@ -238,8 +352,7 @@ const formatRelativeTime = (isoDateTime: string): string => {
     if (hours > 0) return rtf.format(hours, 'hour');
     const minutes = Math.floor(diffSeconds / 60);
     if (minutes > 0) return rtf.format(minutes, 'minute');
-    if (diffSeconds <=0) return "právě končí";
-    return rtf.format(diffSeconds, 'second');
+    return `za ${diffSeconds} s`;
 };
 const formatFullDateTime = (isoDateTime: string): string => {
     return new Date(isoDateTime).toLocaleString('cs-CZ', { dateStyle: 'medium', timeStyle: 'short' });
@@ -263,7 +376,7 @@ const didUserVoteForOption = (poll: Poll, optionId: string): boolean => {
 
 const canSubmitVote = (pollId: string): boolean => {
     const poll = polls.value.find(p => p.pollId === pollId);
-    if (!poll || poll.isClosed || userHasVoted(pollId)) return false;
+    if (!poll || isPollEffectivelyClosed(poll) || userHasVoted(pollId)) return false;
     const selection = selectedOptions[pollId];
     if (Array.isArray(selection)) return selection.length > 0;
     return !!selection;
@@ -287,13 +400,7 @@ const handleVote = async (pollId: string) => {
   const updatedPollData = await submitVote(pollId, { optionIds: optionIdsToSubmit });
   votingStates[pollId] = false;
   if (updatedPollData) {
-    const pollIndex = polls.value.findIndex(p => p.pollId === pollId);
-    if (pollIndex !== -1) {
-      polls.value[pollIndex] = { ...polls.value[pollIndex], ...updatedPollData };
-      if (updatedPollData.userVotedOptionIds && updatedPollData.userVotedOptionIds.length > 0) {
-          selectedOptions[pollId] = updatedPollData.isMultipleChoice ? [...updatedPollData.userVotedOptionIds] : updatedPollData.userVotedOptionIds[0];
-      }
-    }
+     handleReceiveVoteUpdate(updatedPollData);
   }
 };
 
@@ -309,7 +416,7 @@ const calculatePercentage = (totalVotes: number, optionVotes: number): string =>
 };
 
 const isWinningOption = (poll: Poll, optionId: string): boolean => {
-    if (!poll.isClosed && !userHasVoted(poll.pollId)) return false;
+    if (!isPollEffectivelyClosed(poll) && !userHasVoted(poll.pollId)) return false;
     if (!poll.options || (poll.totalVotes || 0) === 0) return false;
     const optionsWithResults = getPollOptionsWithResults(poll);
     if (!optionsWithResults.length) return false;
@@ -348,7 +455,7 @@ const getLocalDateTimeForInput = (date: Date): string => {
 const openCreatePollModal = () => {
   const iconColor = 'var(--v-theme-primary)';
   const iconStyle = 'vertical-align: middle; margin-right: 8px;';
-  let nextOptionId = 0; // Pro generování unikátních ID pro inputy v rámci modalu
+  let nextOptionId = 0;
 
   Swal.fire({
     ...getFuturisticSwalBaseOptions('Vytvořit novou anketu'),
@@ -358,17 +465,14 @@ const openCreatePollModal = () => {
             ${createIconHtml(mdiHelpCircleOutline, 18, iconColor, iconStyle)}Otázka:
         </label>
         <input id="swal-question" class="swal2-input futuristic-swal-input" placeholder="Např. Jaká je vaše oblíbená hra?">
-
         <label for="swal-endTime" class="swal-label">
             ${createIconHtml(mdiCalendarClock, 18, iconColor, iconStyle)}Datum a čas ukončení (lokální čas):
         </label>
         <input id="swal-endTime" type="datetime-local" class="swal2-input futuristic-swal-input">
-
         <label for="swal-imageUrl" class="swal-label">
             ${createIconHtml(mdiImage, 18, iconColor, iconStyle)}URL obrázku (volitelné):
         </label>
         <input id="swal-imageUrl" class="swal2-input futuristic-swal-input" placeholder="https://example.com/image.png">
-
         <label class="swal-label">
             ${createIconHtml(mdiFormatListBulletedSquare, 18, iconColor, iconStyle)}Možnosti odpovědí (min. 2):
         </label>
@@ -381,7 +485,6 @@ const openCreatePollModal = () => {
           </div>
         </div>
         <button id="swal-add-option" type="button" class="futuristic-btn-secondary">Přidat další možnost</button>
-
         <label class="swal-checkbox-label">
           <input id="swal-isMultipleChoice" type="checkbox" class="swal2-checkbox futuristic-swal-checkbox">
           ${createIconHtml(mdiCheckboxMultipleBlankOutline, 18, iconColor, iconStyle)}Povolit výběr více možností
@@ -402,7 +505,6 @@ const openCreatePollModal = () => {
     didOpen: () => {
       const addOptionButton = document.getElementById('swal-add-option');
       const optionsContainer = document.getElementById('swal-options-container');
-
       addOptionButton?.addEventListener('click', () => {
         const optionItemDiv = document.createElement('div');
         optionItemDiv.className = 'swal-option-item mb-2';
@@ -414,7 +516,6 @@ const openCreatePollModal = () => {
         optionsContainer?.appendChild(optionItemDiv);
         newInput.focus();
       });
-
       const endTimeInput = document.getElementById('swal-endTime') as HTMLInputElement;
       const now = new Date();
       endTimeInput.min = getLocalDateTimeForInput(now);
@@ -429,7 +530,6 @@ const openCreatePollModal = () => {
       const isMultipleChoice = (document.getElementById('swal-isMultipleChoice') as HTMLInputElement).checked;
       const optionsInputs = document.querySelectorAll('#swal-options-container input[data-option-input-id]');
       const options = Array.from(optionsInputs).map(input => ({ text: (input as HTMLInputElement).value.trim() })).filter(opt => opt.text !== '');
-
       let validationMessage = '';
       if (!question) validationMessage += 'Otázka je povinná.<br>';
       else if (question.length < 5) validationMessage += 'Otázka musí mít alespoň 5 znaků.<br>';
@@ -439,12 +539,14 @@ const openCreatePollModal = () => {
       if (imageUrl && !/^https?:\/\/[^\s/$.?#].[^\s]*$/i.test(imageUrl)) validationMessage += 'URL obrázku se zdá být neplatné.<br>';
       if (validationMessage) { Swal.showValidationMessage(validationMessage); return false; }
       const localSelectedDate = new Date(endTimeValue);
-      // localSelectedDate.setHours(localSelectedDate.getHours() + 2); // Posun o +2 hodiny, pokud je stále požadován
+      localSelectedDate.setHours(localSelectedDate.getHours() + 2);
       const finalUtcEndTime = localSelectedDate.toISOString();
       return { question, endTime: finalUtcEndTime, imageUrl: imageUrl || undefined, options, isMultipleChoice } as CreatePollDto;
     }
   }).then(async (result) => {
-    if (result.isConfirmed && result.value) { const newPoll = await createPoll(result.value); if (newPoll) fetchPolls(); }
+    if (result.isConfirmed && result.value) {
+        await createPoll(result.value);
+    }
   });
 };
 
@@ -453,20 +555,22 @@ const openEditPollModal = (poll: Poll) => {
   const iconStyle = 'vertical-align: middle; margin-right: 8px;';
   const pollEndTimeLocal = new Date(poll.endTime);
   const formattedPollEndTimeForInput = getLocalDateTimeForInput(pollEndTimeLocal);
-  let tempOptions: UpdatePollOptionPayload[] = JSON.parse(JSON.stringify(poll.options.map(o => ({optionId: o.optionId, text: o.text, imageUrl: o.imageUrl || ''})))); // Hluboká kopie pro editaci
-  let nextTempOptionId = 0; // Pro nové možnosti v UI
+  let tempOptions: UpdatePollOptionPayload[] = JSON.parse(JSON.stringify(poll.options.map(o => ({optionId: o.optionId, text: o.text, imageUrl: o.imageUrl || ''}))));
+  let nextTempOptionIdCounter = 0;
 
   const generateOptionsHtml = (currentOptions: UpdatePollOptionPayload[]) => {
     let optionsHtml = '';
     currentOptions.forEach((opt, index) => {
-        const uniqueIdSuffix = opt.optionId || `new-${index}`;
+        const tempDomId = opt.optionId || `new-edit-option-${index}-${Date.now()}`;
         optionsHtml += `
-        <div class="swal-option-item mb-2" data-option-id="${opt.optionId || ''}" data-temp-id="temp-${uniqueIdSuffix}">
-          <input class="swal2-input futuristic-swal-input swal-option-text-input" value="${opt.text}" placeholder="Text možnosti ${index + 1}">
-          <input class="swal2-input futuristic-swal-input mt-1 swal-option-image-input" value="${opt.imageUrl || ''}" placeholder="URL obrázku (volitelné)">
-          <button type="button" class="swal-remove-option-btn futuristic-btn-icon error" data-remove-option-id="${opt.optionId || `temp-${uniqueIdSuffix}`}" title="Smazat možnost">
-            ${createIconHtml(mdiTrashCanOutline, 16, 'var(--v-theme-error)')}
-          </button>
+        <div class="swal-option-item mb-2" data-option-id="${opt.optionId || ''}" data-temp-id="${tempDomId}">
+          <input class="swal2-input futuristic-swal-input swal-option-text-input" value="${opt.text}" placeholder="Text možnosti ${index + 1}" ${poll.totalVotes && poll.totalVotes > 0 ? 'disabled' : ''}>
+          <input class="swal2-input futuristic-swal-input mt-1 swal-option-image-input" value="${opt.imageUrl || ''}" placeholder="URL obrázku (volitelné)" ${poll.totalVotes && poll.totalVotes > 0 ? 'disabled' : ''}>
+          ${ !(poll.totalVotes && poll.totalVotes > 0) ?
+            `<button type="button" class="swal-remove-option-btn futuristic-btn-icon error" data-remove-temp-id="${tempDomId}" title="Smazat možnost">
+              ${createIconHtml(mdiTrashCanOutline, 16, 'var(--v-theme-error)')}
+            </button>` : ''
+          }
         </div>`;
     });
     return optionsHtml;
@@ -480,24 +584,23 @@ const openEditPollModal = (poll: Poll) => {
             ${createIconHtml(mdiHelpCircleOutline, 18, iconColor, iconStyle)}Otázka:
         </label>
         <input id="swal-edit-question" class="swal2-input futuristic-swal-input" value="${poll.question}">
-
         <label for="swal-edit-endTime" class="swal-label">
             ${createIconHtml(mdiCalendarClock, 18, iconColor, iconStyle)}Datum a čas ukončení (lokální čas):
         </label>
         <input id="swal-edit-endTime" type="datetime-local" class="swal2-input futuristic-swal-input" value="${formattedPollEndTimeForInput}">
-
         <label for="swal-edit-imageUrl" class="swal-label">
             ${createIconHtml(mdiImage, 18, iconColor, iconStyle)}URL obrázku ankety (volitelné):
         </label>
         <input id="swal-edit-imageUrl" class="swal2-input futuristic-swal-input" value="${poll.imageUrl || ''}">
-
         <label class="swal-label">
             ${createIconHtml(mdiFormatListBulletedSquare, 18, iconColor, iconStyle)}Možnosti odpovědí:
         </label>
         <div id="swal-edit-options-container" class="mb-2">
             ${generateOptionsHtml(tempOptions)}
         </div>
-        <button id="swal-edit-add-option" type="button" class="futuristic-btn-secondary">Přidat další možnost</button>
+        ${ !(poll.totalVotes && poll.totalVotes > 0) ?
+            `<button id="swal-edit-add-option" type="button" class="futuristic-btn-secondary">Přidat další možnost</button>` : ''
+        }
         ${poll.totalVotes && poll.totalVotes > 0 ? '<p class="font-inter text-warning text-caption mt-2">Upozornění: Anketa již má hlasy. Změna možností není povolena.</p>' : ''}
       </div>
     `,
@@ -516,69 +619,65 @@ const openEditPollModal = (poll: Poll) => {
         const optionsContainer = modalElement.querySelector('#swal-edit-options-container');
         const addOptionButton = modalElement.querySelector('#swal-edit-add-option');
 
-        const updateRemoveButtonsListeners = () => {
+        const rebindRemoveListeners = () => {
             modalElement.querySelectorAll('.swal-remove-option-btn').forEach(btn => {
-                btn.replaceWith(btn.cloneNode(true)); // Odstraní staré listenery
-            });
-            modalElement.querySelectorAll('.swal-remove-option-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
+                const oldBtn = btn;
+                const newBtn = oldBtn.cloneNode(true);
+                oldBtn.parentNode?.replaceChild(newBtn, oldBtn);
+
+                newBtn.addEventListener('click', (e) => {
                     const targetButton = e.currentTarget as HTMLButtonElement;
-                    const idToRemove = targetButton.dataset.removeOptionId;
-                    tempOptions = tempOptions.filter(opt => (opt.optionId || `temp-${opt.optionId?.substring(0,5)}${nextTempOptionId-1}`) !== idToRemove); // Trochu hacky, ale pro UI
+                    const tempIdToRemove = targetButton.dataset.removeTempId;
+                    const indexToRemove = tempOptions.findIndex(opt => (opt.optionId || `new-edit-option-${tempOptions.indexOf(opt)}-${Date.now()}`) === tempIdToRemove);
+                    if (indexToRemove !== -1) {
+                        tempOptions.splice(indexToRemove, 1);
+                    }
                     if (optionsContainer) optionsContainer.innerHTML = generateOptionsHtml(tempOptions);
-                    updateRemoveButtonsListeners(); // Znovu navázat listenery
+                    rebindRemoveListeners();
                 });
             });
         };
 
-        addOptionButton?.addEventListener('click', () => {
-            if (poll.totalVotes && poll.totalVotes > 0) {
-                Swal.showValidationMessage('Nelze přidávat možnosti k anketě, která již má hlasy.');
-                return;
-            }
-            const newOptId = `new-${nextTempOptionId++}`;
-            tempOptions.push({ optionId: undefined, text: '', imageUrl: '' }); // Přidáme prázdnou novou možnost
-            if (optionsContainer) optionsContainer.innerHTML = generateOptionsHtml(tempOptions); // Překreslíme možnosti
-            updateRemoveButtonsListeners();
-            // Focus na nový input
-            const newInputs = optionsContainer?.querySelectorAll('.swal-option-text-input');
-            if (newInputs && newInputs.length > 0) {
-                 (newInputs[newInputs.length -1] as HTMLElement).focus();
-            }
-        });
-        updateRemoveButtonsListeners();
-
+        if (addOptionButton) {
+            addOptionButton.addEventListener('click', () => {
+                tempOptions.push({ optionId: undefined, text: '', imageUrl: '' });
+                if (optionsContainer) optionsContainer.innerHTML = generateOptionsHtml(tempOptions);
+                rebindRemoveListeners();
+                const newInputs = optionsContainer?.querySelectorAll('.swal-option-text-input');
+                if (newInputs && newInputs.length > 0) (newInputs[newInputs.length -1] as HTMLElement).focus();
+            });
+        }
+        rebindRemoveListeners();
 
         const endTimeInput = modalElement.querySelector('#swal-edit-endTime') as HTMLInputElement;
         const now = new Date();
         endTimeInput.min = getLocalDateTimeForInput(now);
         (modalElement.querySelector('#swal-edit-question') as HTMLInputElement)?.focus();
-
-        // Zakázat úpravu možností, pokud jsou hlasy
-        if (poll.totalVotes && poll.totalVotes > 0) {
-            modalElement.querySelectorAll('#swal-edit-options-container input').forEach(input => (input as HTMLInputElement).disabled = true);
-            if(addOptionButton) (addOptionButton as HTMLButtonElement).style.display = 'none';
-             modalElement.querySelectorAll('.swal-remove-option-btn').forEach(btn => (btn as HTMLButtonElement).style.display = 'none');
-        }
     },
     preConfirm: () => {
       const question = (document.getElementById('swal-edit-question') as HTMLInputElement).value.trim();
       const endTimeValue = (document.getElementById('swal-edit-endTime') as HTMLInputElement).value;
       const imageUrl = (document.getElementById('swal-edit-imageUrl') as HTMLInputElement).value.trim();
-
       const finalOptions: UpdatePollOptionPayload[] = [];
-      document.querySelectorAll('#swal-edit-options-container .swal-option-item').forEach(itemDiv => {
-          const textInput = itemDiv.querySelector('.swal-option-text-input') as HTMLInputElement;
-          const imageInput = itemDiv.querySelector('.swal-option-image-input') as HTMLInputElement;
-          const optionId = (itemDiv as HTMLElement).dataset.optionId || undefined;
-          if (textInput && textInput.value.trim() !== '') {
-              finalOptions.push({
-                  optionId: optionId === '' ? undefined : optionId, // Pokud je prázdný string, pošleme undefined
-                  text: textInput.value.trim(),
-                  imageUrl: imageInput ? imageInput.value.trim() || undefined : undefined
-              });
-          }
-      });
+
+      if (!(poll.totalVotes && poll.totalVotes > 0)) {
+        document.querySelectorAll('#swal-edit-options-container .swal-option-item').forEach(itemDiv => {
+            const textInput = itemDiv.querySelector('.swal-option-text-input') as HTMLInputElement;
+            const imageInput = itemDiv.querySelector('.swal-option-image-input') as HTMLInputElement;
+            const optionIdAttr = (itemDiv as HTMLElement).dataset.optionId;
+            const optionId = optionIdAttr === '' ? undefined : optionIdAttr;
+
+            if (textInput && textInput.value.trim() !== '') {
+                finalOptions.push({
+                    optionId: optionId,
+                    text: textInput.value.trim(),
+                    imageUrl: imageInput ? imageInput.value.trim() || undefined : undefined
+                });
+            }
+        });
+      } else {
+          poll.options.forEach(opt => finalOptions.push({optionId: opt.optionId, text: opt.text, imageUrl: opt.imageUrl}));
+      }
 
       let validationMessage = '';
       if (!question) validationMessage += 'Otázka je povinná.<br>';
@@ -597,20 +696,19 @@ const openEditPollModal = (poll: Poll) => {
       if (validationMessage) { Swal.showValidationMessage(validationMessage); return false; }
 
       const localSelectedDate = new Date(endTimeValue);
-      // localSelectedDate.setHours(localSelectedDate.getHours() + 2); // Posun o +2 hodiny, pokud stále požadováno
+      localSelectedDate.setHours(localSelectedDate.getHours() + 2);
       const finalUtcEndTime = localSelectedDate.toISOString();
 
       return {
           question,
           endTime: finalUtcEndTime,
           imageUrl: imageUrl || undefined,
-          options: (poll.totalVotes && poll.totalVotes > 0) ? poll.options.map(o => ({optionId: o.optionId, text: o.text, imageUrl: o.imageUrl})) : finalOptions // Pokud jsou hlasy, pošleme původní options
+          options: finalOptions
       } as UpdatePollDto;
     }
   }).then(async (result) => {
     if (result.isConfirmed && result.value) {
-      const updated = await updatePoll(poll.pollId, result.value);
-      if (updated) fetchPolls();
+      await updatePoll(poll.pollId, result.value);
     }
   });
 };
@@ -621,7 +719,9 @@ const confirmDeletePoll = (pollId: string) => {
     text: "Tato akce je nevratná!", icon: 'warning',
     showCancelButton: true, confirmButtonText: 'Ano, smazat', cancelButtonText: 'Zrušit',
   }).then(async (result) => {
-    if (result.isConfirmed) { const success = await deletePoll(pollId); if (success) fetchPolls(); }
+    if (result.isConfirmed) {
+        await deletePoll(pollId);
+    }
   });
 };
 
@@ -667,22 +767,21 @@ const confirmDeletePoll = (pollId: string) => {
   margin-top: 12px;
   display: flex;
   flex-direction: column;
-  gap: 0px; /* Snížená mezera */
+  gap: 0px;
 }
 .option-item {
   width: 100%;
-  margin-bottom: 0px; /* Snížená mezera */
+  margin-bottom: 0px;
 }
 .option-item :deep(.v-label) {
     opacity: 1 !important;
     color: var(--v-theme-text-primary) !important;
-    padding-top: 8px; /* Přidáno pro lepší vertikální zarovnání */
+    padding-top: 8px;
     padding-bottom: 8px;
 }
-.option-item :deep(.v-selection-control__input > .v-icon) { /* Cílení na ikonu checkboxu/radia */
+.option-item :deep(.v-selection-control__input > .v-icon) {
     color: var(--v-theme-primary);
 }
-
 
 .results-section {
   margin-top: 16px;
@@ -765,7 +864,7 @@ const confirmDeletePoll = (pollId: string) => {
     text-transform: none;
     letter-spacing: 0.3px;
     transition: background-color 0.2s ease-in-out;
-    margin-top: 0.5rem; /* Přidáno odsazení */
+    margin-top: 0.5rem;
 }
 :deep(.futuristic-btn-secondary:hover) {
     background-color: var(--v-theme-secondary-darken-1) !important;
@@ -776,14 +875,13 @@ const confirmDeletePoll = (pollId: string) => {
 :deep(.swal-form-container-custom-padding) {
     padding: 0 1.5em 1.25em 1.5em !important;
 }
-/* Styly pro editaci možností */
 :deep(.swal-option-item) {
     display: flex;
     align-items: center;
-    gap: 8px; /* Mezera mezi textovým polem a tlačítkem smazat */
+    gap: 8px;
 }
 :deep(.swal-option-item .swal-option-text-input) {
-    flex-grow: 1; /* Textové pole zabere většinu místa */
+    flex-grow: 1;
 }
 :deep(.swal-option-item .swal-option-image-input) {
     flex-grow: 1;
@@ -794,15 +892,16 @@ const confirmDeletePoll = (pollId: string) => {
     padding: 4px;
     cursor: pointer;
     line-height: 1;
+    color: var(--v-theme-error); /* Barva ikony koše */
 }
 :deep(.swal-remove-option-btn svg) {
-    display: block; /* Zajistí, že SVG ikona je správně zarovnaná */
+    display: block;
 }
-:deep(.edit-poll-swal .swal-label) { /* Specifické odsazení pro editaci */
+:deep(.edit-poll-swal .swal-label) {
     margin-top: 1rem;
 }
 :deep(.edit-poll-swal #swal-edit-options-container + .futuristic-btn-secondary) {
-    margin-bottom: 1rem; /* Větší mezera pod tlačítkem "Přidat možnost" v editaci */
+    margin-bottom: 1rem;
 }
 
 </style>
