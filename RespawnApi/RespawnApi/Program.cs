@@ -8,7 +8,7 @@ using RespawnApi.Application.Services;
 using RespawnApi.Data;
 using RespawnApi.DataAccess.Interfaces;
 using RespawnApi.DataAccess.Repositories;
-using RespawnApi.Hubs; // Pro PollHub a PresenceHub
+using RespawnApi.Hubs; // Pro PollHub, PresenceHub a GameServerHub
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -83,9 +83,10 @@ builder.Services.AddAuthentication(options =>
         {
             var accessToken = context.Request.Query["access_token"];
             var path = context.HttpContext.Request.Path;
-            // Povolení tokenu z query stringu pro oba huby
             if (!string.IsNullOrEmpty(accessToken) &&
-                (path.StartsWithSegments("/pollHub") || path.StartsWithSegments("/presenceHub")))
+                (path.StartsWithSegments("/pollHub") ||
+                 path.StartsWithSegments("/presenceHub") ||
+                 path.StartsWithSegments("/gameServerHub"))) // <-- Přidáno
             {
                 context.Token = accessToken;
             }
@@ -97,7 +98,10 @@ builder.Services.AddAuthentication(options =>
 // Dependency Injection
 builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
 builder.Services.AddScoped<ITokenService, TokenService>();
-builder.Services.AddSingleton<IUserPresenceService, UserPresenceService>(); // <-- Přidáno: Registrace UserPresenceService jako Singleton
+builder.Services.AddSingleton<IUserPresenceService, UserPresenceService>();
+builder.Services.AddScoped<IGameServerRepository, GameServerRepository>(); // <-- Přidáno
+builder.Services.AddSingleton<IDockerService, DockerService>(); // <-- Přidáno (Singleton, protože DockerClient je thread-safe a drahý na vytvoření)
+// builder.Services.AddHostedService<GameServerStatusMonitorService>(); // <-- Přidáme později
 
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
@@ -189,5 +193,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<PollHub>("/pollHub");
-app.MapHub<PresenceHub>("/presenceHub"); // <-- Přidáno: Mapování PresenceHubu
+app.MapHub<PresenceHub>("/presenceHub");
+app.MapHub<GameServerHub>("/gameServerHub"); // <-- Přidáno: Mapování GameServerHubu
 app.Run();

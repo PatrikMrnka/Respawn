@@ -1,13 +1,19 @@
-﻿using RespawnApi.Domain.Entities;
+﻿// DataAccess/Interfaces/IGameServerRepository.cs
+using RespawnApi.Domain.Entities;
+using RespawnApi.Domain.Enums;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace RespawnApi.DataAccess.Interfaces
 {
     public interface IGameServerRepository
     {
-        Task<GameServer?> GetGameServerByIdAsync(string serverId);
-        Task<IEnumerable<GameServer>> GetAllGameServersAsync();
-        Task AddGameServerAsync(GameServer gameServer);
-        Task UpdateGameServerAsync(GameServer gameServer);
-        Task DeleteGameServerAsync(string serverId);
+        Task<GameServer?> GetByIdAsync(Guid gameServerId);
+        Task<IEnumerable<GameServer>> GetAllAsync();
+        Task AddAsync(GameServer gameServer);
+        Task UpdateAsync(GameServer gameServer);
+        Task DeleteAsync(Guid gameServerId);
+        Task<IEnumerable<GameServer>> GetServersByStatusesAsync(IEnumerable<ServerStatus> statuses);
     }
 }

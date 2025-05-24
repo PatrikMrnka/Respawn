@@ -3,13 +3,25 @@
 // Mělo by odpovídat enumu na backendu: Domain/Enums/GameType.cs
 export enum GameType 
 {
-    CS = 1
+        CounterStrike = 1,
+        TeamFortress2 = 2,
+        GarrysMod = 3
 }
 
 // Mělo by odpovídat enumu na backendu: Domain/Enums/ServerStatus.cs
 export enum ServerStatus 
 {
-    NOT_INSTALLED = 1,
+        Unknown = 0,
+        Offline = 1,
+        Online = 2,
+        Starting = 3,
+        Stopping = 4,
+        Restarting = 5,
+        Installing = 6,
+        Updating = 7,
+        Error = 8,
+        PendingCreation = 9,
+        Deleting = 10
 }
 
 export enum UserRoles 

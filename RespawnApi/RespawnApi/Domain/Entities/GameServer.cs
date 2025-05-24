@@ -1,42 +1,45 @@
-﻿using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
+﻿// Domain/Entities/GameServer.cs
 using RespawnApi.Domain.Enums;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RespawnApi.Domain.Entities
 {
     public class GameServer
     {
         [Key]
-        [MaxLength(36)]
-        public string ServerId { get; set; } = Guid.NewGuid().ToString(); // primary key
+        public Guid GameServerId { get; set; }
 
         [Required]
         [MaxLength(100)]
-        public string Name { get; set; } // name of the server
+        public string Name { get; set; } = string.Empty;
 
         [Required]
-        public GameType GameType { get; set; } // type of the game
+        public GameType GameType { get; set; }
 
         [Required]
+        public ServerStatus Status { get; set; } // Celkový/kontejnerový stav
+
         [MaxLength(100)]
-        public string DockerImage { get; set; } // Docker image for the server
+        public string? LgsmServerStatus { get; set; } // Detailní stav z LinuxGSM (např. ONLINE, STARTING, INSTALLING)
 
         [MaxLength(100)]
-        public string? ContainerId { get; set; } // Docker container ID
+        public string? IpAddress { get; set; }
 
-        [Required]
-        public ServerStatus Status { get; set; } = ServerStatus.NOT_INSTALLED; // status of the server
+        public int? Port { get; set; }
 
-        [Column(TypeName = "json")]
-        public string? Metrics { get; set; } // JSON metrics data
+        [MaxLength(255)]
+        public string? ContainerId { get; set; }
 
-        [Column(TypeName = "json")]
-        public string? PortMappings { get; set; } // JSON port mappings
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        [Column(TypeName = "json")]
-        public string? Configuration { get; set; } // JSON configuration data
+        [MaxLength(500)]
+        public string? StatusDetails { get; set; } // Doplňující informace, např. chybové hlášky
 
-        public ICollection<GameSession> GameSessions { get; set; } = new List<GameSession>(); // navigation property to GameSession
-        public ICollection<PlayerStats> PlayerStats { get; set; } = new List<PlayerStats>(); // navigation property to PlayerStats
+        // Navigation properties
+        public virtual ICollection<GameSession> GameSessions { get; set; } = new List<GameSession>();
+        public virtual ICollection<PlayerStats> PlayerStats { get; set; } = new List<PlayerStats>();
     }
 }

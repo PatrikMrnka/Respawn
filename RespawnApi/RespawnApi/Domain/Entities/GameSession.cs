@@ -1,4 +1,7 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿// Domain/Entities/GameSession.cs
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RespawnApi.Domain.Entities
@@ -6,21 +9,26 @@ namespace RespawnApi.Domain.Entities
     public class GameSession
     {
         [Key]
-        [MaxLength(36)]
-        public string SessionId { get; set; } = Guid.NewGuid().ToString(); // primary key
+        public Guid GameSessionId { get; set; } = Guid.NewGuid();
 
         [Required]
-        public string ServerId { get; set; } // foreign key to GameServer
+        public Guid GameServerId { get; set; } // Cizí klíč pro GameServer - MUSÍ BÝT Guid
 
-        [Required]
-        public DateTime StartTime { get; set; } = DateTime.UtcNow; // start time of the session
+        public DateTime StartTime { get; set; } = DateTime.UtcNow;
 
-        [Required]
-        public DateTime? EndTime { get; set; } // end time of the session
+        public DateTime? EndTime { get; set; }
 
-        [ForeignKey(nameof(ServerId))]
-        public GameServer Server { get; set; } // navigation property to GameServer
+        // Další vlastnosti session, např. název mapy, počet hráčů atd.
+        [MaxLength(100)]
+        public string? MapName { get; set; }
 
-        public ICollection<PlayerStats> PlayerStats { get; set; } = new List<PlayerStats>(); // navigation property to PlayerStats
+        public int MaxPlayers { get; set; }
+
+        public int CurrentPlayers { get; set; }
+
+        // Navigation properties
+        [ForeignKey(nameof(GameServerId))] // Atribut ForeignKey odkazuje na vlastnost GameServerId
+        public virtual GameServer? Server { get; set; } // Název navigační vlastnosti může být 'Server' nebo 'GameServer'
+        public virtual ICollection<PlayerStats> PlayerStatsInSession { get; set; } = new List<PlayerStats>();
     }
 }
