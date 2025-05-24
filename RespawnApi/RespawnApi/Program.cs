@@ -101,7 +101,7 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddSingleton<IUserPresenceService, UserPresenceService>();
 builder.Services.AddScoped<IGameServerRepository, GameServerRepository>(); // <-- Přidáno
 builder.Services.AddSingleton<IDockerService, DockerService>(); // <-- Přidáno (Singleton, protože DockerClient je thread-safe a drahý na vytvoření)
-// builder.Services.AddHostedService<GameServerStatusMonitorService>(); // <-- Přidáme později
+builder.Services.AddHostedService<GameServerStatusMonitorService>();
 
 builder.Services.AddControllers();
 builder.Services.AddSignalR();

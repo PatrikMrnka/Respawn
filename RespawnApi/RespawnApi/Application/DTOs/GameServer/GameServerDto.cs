@@ -10,7 +10,6 @@ namespace RespawnApi.Application.DTOs.GameServer
         public string Name { get; set; } = string.Empty;
         public GameType GameType { get; set; }
         public ServerStatus Status { get; set; } // Celkový/kontejnerový stav
-        public string? LgsmServerStatus { get; set; } // Detailní stav z LinuxGSM
         public string? IpAddress { get; set; }
         public int? Port { get; set; }
         public string? ContainerId { get; set; }
@@ -34,7 +33,6 @@ namespace RespawnApi.Application.DTOs.GameServer
     {
         public Guid GameServerId { get; set; }
         public ServerStatus NewOverallStatus { get; set; } // Přejmenováno pro srozumitelnost
-        public string? NewLgsmServerStatus { get; set; } // Nový stav z LGSM
         public string? StatusDetails { get; set; }
         public string? ErrorMessage { get; set; }
     }

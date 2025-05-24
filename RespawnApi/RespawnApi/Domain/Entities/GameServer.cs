@@ -23,9 +23,6 @@ namespace RespawnApi.Domain.Entities
         public ServerStatus Status { get; set; } // Celkový/kontejnerový stav
 
         [MaxLength(100)]
-        public string? LgsmServerStatus { get; set; } // Detailní stav z LinuxGSM (např. ONLINE, STARTING, INSTALLING)
-
-        [MaxLength(100)]
         public string? IpAddress { get; set; }
 
         public int? Port { get; set; }

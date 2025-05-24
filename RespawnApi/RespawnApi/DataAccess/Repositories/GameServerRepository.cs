@@ -27,7 +27,7 @@ namespace RespawnApi.DataAccess.Repositories
 
         public async Task<IEnumerable<GameServer>> GetAllAsync()
         {
-            return await _context.GameServers.ToListAsync();
+            return await _context.GameServers.AsNoTracking().ToListAsync(); // Přidáno AsNoTracking pro operace pouze pro čtení
         }
 
         public async Task AddAsync(GameServer gameServer)
@@ -40,13 +40,22 @@ namespace RespawnApi.DataAccess.Repositories
         public async Task UpdateAsync(GameServer gameServer)
         {
             if (gameServer == null) throw new ArgumentNullException(nameof(gameServer));
-            _context.GameServers.Update(gameServer);
+            // Ujistěte se, že entita je sledována, pokud byla načtena v jiném kontextu nebo AsNoTracking
+            var existingServer = await _context.GameServers.FindAsync(gameServer.GameServerId);
+            if (existingServer != null)
+            {
+                _context.Entry(existingServer).CurrentValues.SetValues(gameServer);
+            }
+            else
+            {
+                _context.GameServers.Update(gameServer); // Pokud není sledována, Update ji začne sledovat jako Modified
+            }
             await _context.SaveChangesAsync();
         }
 
         public async Task DeleteAsync(Guid gameServerId)
         {
-            var gameServer = await GetByIdAsync(gameServerId);
+            var gameServer = await GetByIdAsync(gameServerId); // Použije sledovanou entitu, pokud je to možné
             if (gameServer != null)
             {
                 _context.GameServers.Remove(gameServer);
@@ -61,6 +70,7 @@ namespace RespawnApi.DataAccess.Repositories
             }
             return await _context.GameServers
                                  .Where(s => statuses.Contains(s.Status))
+                                 .AsNoTracking() // Přidáno AsNoTracking
                                  .ToListAsync();
         }
     }

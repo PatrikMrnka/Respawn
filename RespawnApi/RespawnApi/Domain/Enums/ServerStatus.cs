@@ -3,16 +3,13 @@ namespace RespawnApi.Domain.Enums
 {
     public enum ServerStatus
     {
-        Unknown = 0,
-        Offline = 1,
-        Online = 2,
-        Starting = 3,
-        Stopping = 4,
-        Restarting = 5,
-        Installing = 6,
-        Updating = 7,
-        Error = 8,
-        PendingCreation = 9,
-        Deleting = 10
+        Unknown = 0,        // Neznámý nebo nedefinovaný stav
+        Offline = 1,        // Kontejner neběží (exited, dead, not_found, created)
+        Online = 2,         // Kontejner běží (running)
+        Starting = 3,       // Kontejner se spouští (přechodný stav)
+        Stopping = 4,       // Kontejner se zastavuje (přechodný stav)
+        Restarting = 5,     // Kontejner se restartuje (přechodný stav)
+        Error = 8,          // Došlo k chybě s kontejnerem nebo Docker API
+        PendingCreation = 9 // Server je v DB, ale kontejner se teprve vytváří
     }
 }

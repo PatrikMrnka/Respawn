@@ -1,98 +1,145 @@
 // src/services/signalrService.ts
-import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
-import { useAuthStore } from '@/stores/authStore'; // Pro přístup k tokenu
+import { HubConnection, HubConnectionBuilder, LogLevel, HubConnectionState } from '@microsoft/signalr';
+import { useAuthStore } from '@/stores/authStore';
 
-const API_BASE_URL = 'http://localhost:5207'; // Základní URL vašeho API
+const API_BASE_URL = 'http://localhost:5207';
+
+interface HubConfig {
+  connection: HubConnection | null;
+  connectionPromise: Promise<void> | null;
+  eventCallbacks: Map<string, Set<(...args: any[]) => void>>;
+}
 
 class SignalRService {
-  private connection: HubConnection | null = null;
-  private connectionPromise: Promise<void> | null = null;
-  private eventCallbacks: Map<string, Set<(...args: any[]) => void>> = new Map();
+  private hubConfigs: Map<string, HubConfig> = new Map();
 
-  public async startConnection(): Promise<void> {
-    if (this.connection && this.connection.state === 'Connected') {
-      console.log('SignalR connection already established.');
+  private getHubConfig(hubPath: string): HubConfig {
+    if (!this.hubConfigs.has(hubPath)) {
+      this.hubConfigs.set(hubPath, {
+        connection: null,
+        connectionPromise: null,
+        eventCallbacks: new Map(),
+      });
+    }
+    return this.hubConfigs.get(hubPath)!;
+  }
+
+  public async startConnection(hubPath: string): Promise<void> {
+    // Přidána kontrola a logování pro hubPath
+    if (typeof hubPath !== 'string' || !hubPath.startsWith('/')) {
+      const errMsg = `SignalRService: Invalid hubPath provided: '${hubPath}'. Must be a non-empty string starting with '/'.`;
+      console.error(errMsg);
+      return Promise.reject(new Error(errMsg));
+    }
+
+    const config = this.getHubConfig(hubPath);
+    const fullHubUrl = `${API_BASE_URL}${hubPath}`;
+    console.log(`SignalRService: Attempting to start connection to ${fullHubUrl}`);
+
+
+    if (config.connection && config.connection.state === HubConnectionState.Connected) {
+      console.log(`SignalR connection to ${fullHubUrl} already established.`);
       return;
     }
 
-    if (this.connectionPromise) {
-      console.log('SignalR connection attempt in progress.');
-      return this.connectionPromise;
+    if (config.connectionPromise) {
+      console.log(`SignalR connection attempt to ${fullHubUrl} in progress.`);
+      return config.connectionPromise;
     }
 
     const authStore = useAuthStore();
     const token = authStore.token;
 
-    this.connection = new HubConnectionBuilder()
-      .withUrl(`${API_BASE_URL}/pollHub`, {
-        accessTokenFactory: () => token || '', // Poskytnutí tokenu, pokud existuje
-        // skipNegotiation: true, // Může být potřeba pro některé konfigurace, zkuste bez toho
-        // transport: signalR.HttpTransportType.WebSockets // Explicitní vynucení WebSockets
+    // Kontrola tokenu pro chráněné huby
+    // Předpokládáme, že všechny huby mohou vyžadovat token, pokud je uživatel přihlášen
+    if (!token && authStore.isLoggedIn) { // Pokud je uživatel přihlášen, ale token chybí (nemělo by nastat)
+      console.warn(`SignalRService (${hubPath}): Auth token is missing for a logged-in user. Connection might fail if hub requires auth.`);
+    }
+
+
+    const existingConnection = config.connection;
+    if (existingConnection && existingConnection.state !== HubConnectionState.Disconnected) {
+        console.log(`SignalRService: Stopping existing connection to ${fullHubUrl} before restarting.`);
+        await existingConnection.stop().catch(err => console.error(`Error stopping existing connection to ${fullHubUrl}:`, err));
+    }
+
+    config.connection = new HubConnectionBuilder()
+      .withUrl(fullHubUrl, {
+        accessTokenFactory: () => token || '',
       })
-      .configureLogging(LogLevel.Information) // Nebo LogLevel.Debug pro více detailů
-      .withAutomaticReconnect([0, 2000, 10000, 30000]) // Intervaly pro znovupřipojení
+      .configureLogging(LogLevel.Information)
+      .withAutomaticReconnect([0, 2000, 5000, 10000, 15000, 30000])
       .build();
 
-    this.connection.onclose(async (error) => {
-      console.error('SignalR connection closed.', error);
-      // Zde můžete implementovat logiku pro upozornění uživatele nebo pokus o manuální znovupřipojení
-      // await this.startConnection(); // Automatické znovupřipojení je již nastaveno
+    config.connection.onclose(async (error) => {
+      console.error(`SignalR connection to ${fullHubUrl} closed.`, error);
+      config.connectionPromise = null;
     });
 
-    // Registrace handlerů, které byly přidány před startem spojení
-    this.eventCallbacks.forEach((callbacks, eventName) => {
+    config.eventCallbacks.forEach((callbacks, eventName) => {
       callbacks.forEach(callback => {
-        this.connection?.on(eventName, callback);
+        config.connection?.on(eventName, callback);
       });
     });
-
-    this.connectionPromise = this.connection.start()
+    
+    config.connectionPromise = config.connection.start()
       .then(() => {
-        console.log('SignalR connection established.');
-        this.connectionPromise = null;
+        console.log(`SignalR connection to ${fullHubUrl} established.`);
+        config.connectionPromise = null;
       })
       .catch(err => {
-        console.error('Error establishing SignalR connection:', err);
-        this.connectionPromise = null;
-        // Zde můžete zkusit znovu po nějaké době nebo informovat uživatele
-        // setTimeout(() => this.startConnection(), 5000);
-        throw err; // Vyhodit chybu dál, aby komponenta věděla
+        console.error(`Error establishing SignalR connection to ${fullHubUrl}:`, err);
+        config.connectionPromise = null;
+        // config.connection = null; // Necháme spojení, aby se mohlo pokusit o reconnect
+        throw err;
       });
-    return this.connectionPromise;
+    return config.connectionPromise;
   }
 
-  public async stopConnection(): Promise<void> {
-    if (this.connection && this.connection.state === 'Connected') {
-      await this.connection.stop();
-      console.log('SignalR connection stopped.');
+  public async stopConnection(hubPath: string): Promise<void> {
+    const config = this.hubConfigs.get(hubPath);
+    if (config?.connection && config.connection.state === HubConnectionState.Connected) {
+      await config.connection.stop();
+      console.log(`SignalR connection to ${API_BASE_URL}${hubPath} stopped.`);
     }
-    this.connection = null;
-    this.connectionPromise = null;
-  }
-
-  public on(eventName: string, callback: (...args: any[]) => void): void {
-    if (!this.eventCallbacks.has(eventName)) {
-      this.eventCallbacks.set(eventName, new Set());
-    }
-    this.eventCallbacks.get(eventName)?.add(callback);
-
-    // Pokud je spojení již aktivní, zaregistrujte handler přímo
-    if (this.connection && this.connection.state === 'Connected') {
-      this.connection.on(eventName, callback);
+    if (config) {
+        // Neodstraňujeme config.connection úplně, aby se mohlo znovu připojit
+        // config.connection = null; 
+        config.connectionPromise = null;
     }
   }
 
-  public off(eventName: string, callback: (...args: any[]) => void): void {
-    this.eventCallbacks.get(eventName)?.delete(callback);
-    if (this.connection) {
-      this.connection.off(eventName, callback);
+  public async stopAllConnections(): Promise<void> {
+    console.log("SignalRService: Stopping all connections...");
+    for (const hubPath of this.hubConfigs.keys()) {
+        await this.stopConnection(hubPath);
+    }
+    // this.hubConfigs.clear(); // Nečistíme mapu, aby listenery zůstaly pro případné znovupřipojení
+  }
+
+  public on(hubPath: string, eventName: string, callback: (...args: any[]) => void): void {
+    const config = this.getHubConfig(hubPath); // Zajistí existenci configu
+    if (!config.eventCallbacks.has(eventName)) {
+      config.eventCallbacks.set(eventName, new Set());
+    }
+    config.eventCallbacks.get(eventName)?.add(callback);
+
+    if (config.connection && config.connection.state === HubConnectionState.Connected) {
+      config.connection.on(eventName, callback);
     }
   }
 
-  public getConnectionState(): string | null {
-    return this.connection?.state || null;
+  public off(hubPath: string, eventName: string, callback: (...args: any[]) => void): void {
+    const config = this.hubConfigs.get(hubPath);
+    config?.eventCallbacks.get(eventName)?.delete(callback);
+    if (config?.connection) {
+      config.connection.off(eventName, callback);
+    }
+  }
+
+  public getConnectionState(hubPath: string): HubConnectionState | null {
+    return this.hubConfigs.get(hubPath)?.connection?.state || null;
   }
 }
 
-// Export jedné instance služby (singleton)
 export const signalRService = new SignalRService();

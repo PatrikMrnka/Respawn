@@ -74,13 +74,11 @@ namespace RespawnApi.Controllers
                 if (gameServer != null)
                 {
                     gameServer.Status = ServerStatus.Starting; // Nebo jiný vhodný stav
-                    gameServer.LgsmServerStatus = "STARTING";
                     await _gameServerRepository.UpdateAsync(gameServer);
                     await _gameServerHubContext.Clients.All.SendAsync("ReceiveGameServerStatusUpdate", new GameServerStatusUpdateDto
                     {
                         GameServerId = gameServer.GameServerId,
                         NewOverallStatus = gameServer.Status,
-                        NewLgsmServerStatus = gameServer.LgsmServerStatus,
                         StatusDetails = "Kontejner spuštěn přes Docker Admin."
                     });
                 }
@@ -100,13 +98,11 @@ namespace RespawnApi.Controllers
                 if (gameServer != null)
                 {
                     gameServer.Status = ServerStatus.Stopping; // Nebo Offline, pokud stop je okamžitý
-                    gameServer.LgsmServerStatus = "STOPPING";
                     await _gameServerRepository.UpdateAsync(gameServer);
                     await _gameServerHubContext.Clients.All.SendAsync("ReceiveGameServerStatusUpdate", new GameServerStatusUpdateDto
                     {
                         GameServerId = gameServer.GameServerId,
                         NewOverallStatus = gameServer.Status,
-                        NewLgsmServerStatus = gameServer.LgsmServerStatus,
                         StatusDetails = "Kontejner zastaven přes Docker Admin."
                     });
                 }
@@ -146,12 +142,15 @@ namespace RespawnApi.Controllers
         public async Task<ActionResult<string>> GetContainerLogs(string containerId, [FromQuery] uint tail = 200)
         {
             _logger.LogInformation("Požadavek na logy kontejneru: {ContainerId}, Tail: {Tail}", containerId, tail);
-            var logs = await _dockerService.GetContainerLogsAsync(containerId, tail);
-            if (logs.StartsWith("Chyba:") || logs == "Kontejner nenalezen." || logs == "Nepodařilo se získat stream logů.")
+            var logs = await _dockerService.GetContainerLogsAsync(containerId, null, tail);
+
+            // Assuming logs is a List<string>, we need to check its contents instead of treating it as a single string.
+            if (logs.Any(log => log.StartsWith("Chyba:")) || logs.Contains("Kontejner nenalezen.") || logs.Contains("Nepodařilo se získat stream logů."))
             {
-                return BadRequest(new { message = logs });
+                return BadRequest(new { message = string.Join(" ", logs) });
             }
-            return Ok(logs);
+
+            return Ok(string.Join("\n", logs)); // Combine the logs into a single string for the response.
         }
 
         // --- Images ---

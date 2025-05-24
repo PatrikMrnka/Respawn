@@ -12,8 +12,8 @@
     </v-row>
 
      <v-alert v-if="signalRError" type="warning" density="compact" class="mb-4 font-inter" closable @click:close="signalRError = null">
-      Chyba real-time spojení: {{ signalRError }}. Data se nemusí aktualizovat automaticky.
-      <v-btn variant="text" size="small" @click="attemptReconnect" :loading="reconnectingSignalR">Zkusit znovu</v-btn>
+      Chyba real-time spojení pro ankety: {{ signalRError }}.
+      <v-btn variant="text" size="small" @click="attemptPollsReconnect" :loading="reconnectingSignalR">Zkusit znovu</v-btn>
     </v-alert>
 
     <v-progress-linear v-if="loading" indeterminate color="primary" class="mb-4"></v-progress-linear>
@@ -25,8 +25,9 @@
         <p class="font-inter text-grey-darken-1">Buďte první a vytvořte novou anketu!</p>
     </div>
 
+
     <v-row justify="center" v-if="!loading && polls.length > 0">
-      <v-col v-for="poll in sortedPolls" :key="poll.pollId" cols="12" md="10" lg="8">
+      <v-col v-for="poll in sortedPolls" :key="poll.pollId" cols="12" md="10" lg="10">
         <v-card class="futuristic-card poll-card mb-6" :class="{ 'closed-poll': isPollEffectivelyClosed(poll) }">
           <v-img v-if="poll.imageUrl" :src="poll.imageUrl" height="180px" cover class="poll-image">
             <template v-slot:placeholder>
@@ -158,7 +159,7 @@
 import { ref, onMounted, onBeforeUnmount, computed, reactive } from 'vue';
 import Swal, {type SweetAlertOptions} from 'sweetalert2';
 import { useAuthStore } from '@/stores/authStore';
-import { UserRoles } from '@/types/enums';
+import { UserRoles } from '@/types/enums'; // GameType a ServerStatus zde nejsou potřeba
 import {
   getAllPolls, createPoll, updatePoll, deletePoll, submitVote,
   type Poll, type PollOption, type CreatePollDto, type UpdatePollDto, type UpdatePollOptionPayload
@@ -169,6 +170,8 @@ import {
     mdiCalendarClock, mdiImage, mdiCheckboxMultipleBlankOutline, mdiFormatListBulletedSquare, mdiHelpCircleOutline,
     mdiCheckCircle, mdiTrashCanOutline
 } from '@mdi/js';
+
+const POLL_HUB_PATH = "/pollHub";
 
 const authStore = useAuthStore();
 const polls = ref<Poll[]>([]);
@@ -185,94 +188,93 @@ let timeInterval: number | undefined;
 
 const updateCurrentTimeAndPollsStatus = () => {
   currentTime.value = new Date();
-  polls.value.forEach((poll) => { // Není třeba index, protože Vue reaktivita sleduje změny v objektech pole
+  polls.value.forEach((poll) => {
     if (!poll.isClosed && new Date(poll.endTime) <= currentTime.value) {
-      poll.isClosed = true; // Optimistická aktualizace na frontendu
+      poll.isClosed = true;
     }
   });
 };
 
-// SignalR Handlery
 const handleReceivePollUpdate = (updatedPollFromSignalR: Poll) => {
-  console.log('SignalR: ReceivePollUpdate', updatedPollFromSignalR);
+  console.log('SignalR PollsView: ReceivePollUpdate', updatedPollFromSignalR);
   const index = polls.value.findIndex(p => p.pollId === updatedPollFromSignalR.pollId);
-
   if (index !== -1) {
     const existingPoll = polls.value[index];
     const mergedUserVotedOptionIds =
       (updatedPollFromSignalR.userVotedOptionIds && updatedPollFromSignalR.userVotedOptionIds.length > 0)
         ? updatedPollFromSignalR.userVotedOptionIds
         : existingPoll.userVotedOptionIds;
+    
+    // Explicitní konverze na boolean pro isClosed
+    const isNowClosedBySignalR = !!(updatedPollFromSignalR.isClosed || (updatedPollFromSignalR.endTime && new Date(updatedPollFromSignalR.endTime) <= new Date()));
 
-    // isClosed z SignalR má přednost, nebo se odvodí z endTime, pokud není explicitně v datech
-    const isNowClosedBySignalR = updatedPollFromSignalR.isClosed || (updatedPollFromSignalR.endTime && new Date(updatedPollFromSignalR.endTime) <= new Date());
-
-    polls.value[index] = {
-      ...existingPoll,
-      ...updatedPollFromSignalR,
-      isClosed: isNowClosedBySignalR,
-      userVotedOptionIds: mergedUserVotedOptionIds,
+    polls.value[index] = { 
+        ...existingPoll, 
+        ...updatedPollFromSignalR, 
+        isClosed: isNowClosedBySignalR, // Opraveno zde
+        userVotedOptionIds: mergedUserVotedOptionIds, 
     };
 
     const finalPollState = polls.value[index];
     if (finalPollState.userVotedOptionIds && finalPollState.userVotedOptionIds.length > 0) {
-      selectedOptions[finalPollState.pollId] = finalPollState.isMultipleChoice
-        ? [...finalPollState.userVotedOptionIds]
-        : (finalPollState.userVotedOptionIds[0] || '');
+      selectedOptions[finalPollState.pollId] = finalPollState.isMultipleChoice ? [...finalPollState.userVotedOptionIds] : (finalPollState.userVotedOptionIds[0] || '');
     } else {
       selectedOptions[finalPollState.pollId] = finalPollState.isMultipleChoice ? [] : '';
     }
   } else {
     polls.value.unshift(updatedPollFromSignalR);
-    selectedOptions[updatedPollFromSignalR.pollId] = updatedPollFromSignalR.isMultipleChoice
-      ? []
-      : (updatedPollFromSignalR.userVotedOptionIds && updatedPollFromSignalR.userVotedOptionIds.length > 0 ? updatedPollFromSignalR.userVotedOptionIds[0] : '');
+    selectedOptions[updatedPollFromSignalR.pollId] = updatedPollFromSignalR.isMultipleChoice ? [] : (updatedPollFromSignalR.userVotedOptionIds && updatedPollFromSignalR.userVotedOptionIds.length > 0 ? updatedPollFromSignalR.userVotedOptionIds[0] : '');
   }
 };
 
 const handleReceivePollDelete = (pollId: string) => {
-  console.log('SignalR: ReceivePollDelete', pollId);
+  console.log('SignalR PollsView: ReceivePollDelete', pollId);
   polls.value = polls.value.filter(p => p.pollId !== pollId);
   delete selectedOptions[pollId];
   delete votingStates[pollId];
 };
 
 const handleReceiveVoteUpdate = (updatedPoll: Poll) => {
-  console.log('SignalR: ReceiveVoteUpdate', updatedPoll);
+  console.log('SignalR PollsView: ReceiveVoteUpdate', updatedPoll);
   handleReceivePollUpdate(updatedPoll);
 };
 
 const setupSignalRListeners = () => {
-    signalRService.on("ReceivePollUpdate", handleReceivePollUpdate);
-    signalRService.on("ReceivePollDelete", handleReceivePollDelete);
-    signalRService.on("ReceiveVoteUpdate", handleReceiveVoteUpdate);
+    console.log(`PollsView: Registruji SignalR listenery pro ${POLL_HUB_PATH}`);
+    signalRService.on(POLL_HUB_PATH, "ReceivePollUpdate", handleReceivePollUpdate);
+    signalRService.on(POLL_HUB_PATH, "ReceivePollDelete", handleReceivePollDelete);
+    signalRService.on(POLL_HUB_PATH, "ReceiveVoteUpdate", handleReceiveVoteUpdate);
 };
-
 const removeSignalRListeners = () => {
-    signalRService.off("ReceivePollUpdate", handleReceivePollUpdate);
-    signalRService.off("ReceivePollDelete", handleReceivePollDelete);
-    signalRService.off("ReceiveVoteUpdate", handleReceiveVoteUpdate);
+    console.log(`PollsView: Odregistrovávám SignalR listenery pro ${POLL_HUB_PATH}`);
+    signalRService.off(POLL_HUB_PATH, "ReceivePollUpdate", handleReceivePollUpdate);
+    signalRService.off(POLL_HUB_PATH, "ReceivePollDelete", handleReceivePollDelete);
+    signalRService.off(POLL_HUB_PATH, "ReceiveVoteUpdate", handleReceiveVoteUpdate);
 };
 
-const attemptReconnect = async () => {
-    if (signalRService.getConnectionState() === 'Disconnected' || signalRService.getConnectionState() === null) {
-        reconnectingSignalR.value = true;
-        signalRError.value = null;
-        try {
-            await signalRService.startConnection();
-        } catch (err: any) {
-            signalRError.value = err.message || "Nepodařilo se znovu připojit k real-time službě.";
-        } finally {
-            reconnectingSignalR.value = false;
+const attemptPollsReconnect = async () => {
+    console.log(`PollsView: Pokus o znovupřipojení k ${POLL_HUB_PATH}`);
+    if (signalRService.getConnectionState(POLL_HUB_PATH) === 'Disconnected' || signalRService.getConnectionState(POLL_HUB_PATH) === null) {
+        reconnectingSignalR.value = true; signalRError.value = null;
+        try { 
+            await signalRService.startConnection(POLL_HUB_PATH);
+            // Listenery by se měly znovu navázat, pokud to startConnection v signalRService řeší
+            // (v naší implementaci ano, přes eventCallbacks)
         }
+        catch (err: any) { 
+            signalRError.value = err.message || "Nepodařilo se znovu připojit k real-time službě pro ankety.";
+            console.error(`SignalR reconnect error for ${POLL_HUB_PATH}:`, err);
+        }
+        finally { reconnectingSignalR.value = false; }
     }
 };
 
 const fetchPolls = async () => {
-  loading.value = true;
-  apiError.value = null;
+  loading.value = true; apiError.value = null;
+  console.log("PollsView: fetchPolls - Zahájení načítání anket...");
   try {
     const data = await getAllPolls();
+    console.log("PollsView: fetchPolls - Data úspěšně načtena:", data);
     polls.value = data.map(poll => ({
         ...poll,
         isClosed: poll.isClosed || new Date(poll.endTime) <= new Date(),
@@ -287,28 +289,37 @@ const fetchPolls = async () => {
     });
     updateCurrentTimeAndPollsStatus();
   } catch (err: any) {
-    apiError.value = err.message || 'Nepodařilo se načíst ankety.';
+    console.error("PollsView: fetchPolls - Výjimka při fetch:", err);
+    apiError.value = err.message || "Došlo k neočekávané chybě při načítání anket.";
   } finally {
     loading.value = false;
+    console.log("PollsView: fetchPolls - Načítání dokončeno.");
   }
 };
 
 onMounted(async () => {
+  console.log("PollsView: Komponenta připojena (mounted).");
   await fetchPolls();
-  timeInterval = window.setInterval(updateCurrentTimeAndPollsStatus, 1000); // Změněno na 1 sekundu
-  try {
-    await signalRService.startConnection();
-    setupSignalRListeners();
-  } catch (err: any) {
-    signalRError.value = err.message || "Nepodařilo se připojit k real-time službě.";
-    console.error("SignalR connection error on mount:", err);
+  timeInterval = window.setInterval(updateCurrentTimeAndPollsStatus, 1000);
+  if (authStore.isLoggedIn) {
+    console.log(`PollsView: Uživatel přihlášen, pokus o start SignalR pro ${POLL_HUB_PATH}`);
+    try {
+      await signalRService.startConnection(POLL_HUB_PATH);
+      setupSignalRListeners();
+    } catch (err: any) {
+      signalRError.value = err.message || "Nepodařilo se připojit k real-time službě pro ankety.";
+      console.error(`SignalR connection error on mount for ${POLL_HUB_PATH}:`, err);
+    }
+  } else {
+    console.log("PollsView: Uživatel není přihlášen, SignalR se nespouští.");
   }
 });
 
 onBeforeUnmount(() => {
+  console.log("PollsView: Komponenta odpojena (beforeUnmount). Čistím interval a SignalR.");
   if (timeInterval) clearInterval(timeInterval);
   removeSignalRListeners();
-  signalRService.stopConnection();
+  signalRService.stopConnection(POLL_HUB_PATH);
 });
 
 const isPollEffectivelyClosed = (poll: Poll): boolean => {
