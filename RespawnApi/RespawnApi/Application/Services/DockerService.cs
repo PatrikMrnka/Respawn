@@ -1,12 +1,20 @@
-﻿using Docker.DotNet.Models;
+﻿// File: haha/RespawnApi/RespawnApi/Application/Services/DockerService.cs
+using Docker.DotNet.Models;
 using Docker.DotNet;
 using RespawnApi.Application.DTOs.DockerAdmin;
 using RespawnApi.Application.Interfaces;
 using RespawnApi.Domain.Entities;
 using System.Text;
-using System.Reflection.Emit;
-using System.Globalization;
-using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
+using System;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Linq;
+using System.Collections.Generic;
+using System.Net.Sockets;
+using RespawnApi.DataAccess.Interfaces; // Required for IGameServerRepository
 
 namespace RespawnApi.Application.Services
 {
@@ -15,6 +23,10 @@ namespace RespawnApi.Application.Services
         private readonly DockerClient _client;
         private readonly ILogger<DockerService> _logger;
         private readonly string _lgsmBaseImage = "gameservermanagers/gameserver";
+        // This is a workaround for GetGameIdentifier. Ideally, this logic shouldn't be duplicated
+        // or the dependency should be handled differently (e.g., pass GameType directly).
+        private IGameServerRepository? _gameServerRepository;
+
 
         public DockerService(IConfiguration configuration, ILogger<DockerService> logger)
         {
@@ -28,6 +40,13 @@ namespace RespawnApi.Application.Services
             _client = new DockerClientConfiguration(new Uri(dockerApiUri)).CreateClient();
             _logger.LogInformation("DockerService inicializován s URI: {DockerApiUri}", dockerApiUri);
         }
+
+        // Setter for IGameServerRepository (workaround for singleton needing scoped service)
+        public void SetGameServerRepository(IGameServerRepository gameServerRepository)
+        {
+            _gameServerRepository = gameServerRepository;
+        }
+
 
         public async Task<(string? ContainerId, string? ErrorMessage)> CreateContainerAsync(
             GameServer serverDetails, string gameImageTag, string gameIdentifier, string? additionalGsParams)
@@ -51,9 +70,6 @@ namespace RespawnApi.Application.Services
                     _logger.LogInformation("Volume {VolumeName} vytvořen.", volumeName);
                 }
                 var envVars = new List<string> {
-                    //$"GAMESERVER_NAME={serverDetails.Name}", $"LGSM_SERVERNAME={gameIdentifier}",
-                    //$"LGSM_GITHUBUSER={Environment.GetEnvironmentVariable("LGSM_GITHUBUSER")}",
-                    //$"LGSM_GITHUBTOKEN={Environment.GetEnvironmentVariable("LGSM_GITHUBTOKEN")}",
                     "SKIP_UPDATE=TRUE"
                 };
                 if (!string.IsNullOrWhiteSpace(additionalGsParams)) envVars.Add($"GS_PARAMS={additionalGsParams}");
@@ -63,7 +79,10 @@ namespace RespawnApi.Application.Services
                     Image = imageName,
                     Name = containerName,
                     Env = envVars,
-                    Labels = new Dictionary<string, string> { { "com.respawn.gameserver.id", serverDetails.GameServerId.ToString() } },
+                    Labels = new Dictionary<string, string> {
+                        { "com.respawn.gameserver.id", serverDetails.GameServerId.ToString() },
+                        { "com.respawn.lgsm.volume", volumeName } // Store volume name for easier removal
+                    },
                     HostConfig = new HostConfig
                     {
                         RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped },
@@ -96,8 +115,6 @@ namespace RespawnApi.Application.Services
             catch (Exception ex) { _logger.LogError(ex, "Chyba při spouštění kontejneru {ContainerId}.", containerId); return false; }
         }
 
-
-
         public async Task<bool> StopContainerAsync(string containerId)
         {
             try
@@ -120,26 +137,76 @@ namespace RespawnApi.Application.Services
         {
             try
             {
-                var inspect = await _client.Containers.InspectContainerAsync(containerId);
-                await _client.Containers.RemoveContainerAsync(containerId, new ContainerRemoveParameters { Force = true, RemoveVolumes = false });
-                if (removeAssociatedVolume && inspect?.Config?.Labels?.TryGetValue("com.respawn.lgsm.volume", out var volumeName) == true && !string.IsNullOrEmpty(volumeName))
+                ContainerInspectResponse? inspect = null;
+                try
                 {
-                    try { await _client.Volumes.RemoveAsync(volumeName, true); _logger.LogInformation("Volume {VolumeName} smazán.", volumeName); }
-                    catch (Exception volEx) { _logger.LogError(volEx, "Chyba při mazání volume {VolumeName}.", volumeName); }
+                    inspect = await _client.Containers.InspectContainerAsync(containerId);
                 }
-                else if (removeAssociatedVolume && inspect?.Mounts?.Any(m => m.Type == "volume") == true)
+                catch (DockerContainerNotFoundException)
                 {
-                    var firstVolume = inspect.Mounts.FirstOrDefault(m => m.Type == "volume" && !string.IsNullOrEmpty(m.Name));
-                    if (firstVolume != null)
+                    _logger.LogWarning("Kontejner {ContainerId} nenalezen při inspekci před smazáním. Pokračuji pokusem o smazání.", containerId);
+                }
+
+                await _client.Containers.RemoveContainerAsync(containerId, new ContainerRemoveParameters { Force = true, RemoveVolumes = false });
+                _logger.LogInformation("Kontejner {ContainerId} smazán.", containerId);
+
+                if (removeAssociatedVolume && inspect != null) // Proceed only if inspect was successful
+                {
+                    string? volumeNameToRemove = null;
+                    // Try to get volume name from label first
+                    if (inspect.Config?.Labels?.TryGetValue("com.respawn.lgsm.volume", out var volNameFromLabel) == true && !string.IsNullOrEmpty(volNameFromLabel))
                     {
-                        try { await _client.Volumes.RemoveAsync(firstVolume.Name, true); _logger.LogInformation("Fallback: Volume {VolumeName} smazán.", firstVolume.Name); }
-                        catch (Exception volEx) { _logger.LogError(volEx, "Fallback: Chyba při mazání volume {VolumeName}.", firstVolume.Name); }
+                        volumeNameToRemove = volNameFromLabel;
+                    }
+                    // Fallback: try to find a volume from mounts if label method failed or label not present
+                    else if (inspect.Mounts?.Any(m => m.Type == "volume" && !string.IsNullOrEmpty(m.Name)) == true)
+                    {
+                        volumeNameToRemove = inspect.Mounts.FirstOrDefault(m => m.Type == "volume" && !string.IsNullOrEmpty(m.Name))?.Name;
+                        _logger.LogInformation("Volume pro {ContainerId} identifikován z mounts: {VolumeName}", containerId, volumeNameToRemove);
+                    }
+
+
+                    if (!string.IsNullOrEmpty(volumeNameToRemove))
+                    {
+                        try
+                        {
+                            await _client.Volumes.RemoveAsync(volumeNameToRemove, true);
+                            _logger.LogInformation("Asociovaný volume {VolumeName} pro kontejner {ContainerId} smazán.", volumeNameToRemove, containerId);
+                        }
+
+                        catch (Exception volEx)
+                        {
+                            _logger.LogError(volEx, "Chyba při mazání asociovaného volume {VolumeName} pro kontejner {ContainerId}.", volumeNameToRemove, containerId);
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Nepodařilo se identifikovat asociovaný volume pro smazání pro kontejner {ContainerId}.", containerId);
                     }
                 }
                 return true;
             }
+            catch (DockerContainerNotFoundException)
+            {
+                _logger.LogWarning("Kontejner {ContainerId} nenalezen při pokusu o smazání.", containerId);
+                return true; // Container is already gone
+            }
             catch (Exception ex) { _logger.LogError(ex, "Chyba při mazání kontejneru {ContainerId}.", containerId); return false; }
         }
+
+        private string GetGameIdentifier(Domain.Enums.GameType gameType) // Make sure GameType is from Domain.Enums
+        {
+            // This method might be problematic if _gameServerRepository is null during early init of singleton
+            // For now, direct switch is safer if GameType is passed.
+            return gameType switch
+            {
+                Domain.Enums.GameType.CounterStrike => "csserver",
+                Domain.Enums.GameType.TeamFortress2 => "tf2server",
+                Domain.Enums.GameType.GarrysMod => "gmodserver",
+                _ => $"unknownserver-{Guid.NewGuid().ToString().Substring(0, 4)}"
+            };
+        }
+
 
         public async Task<List<string>> GetContainerLogsAsync(string containerId, DateTime? since, uint lines)
         {
@@ -152,43 +219,62 @@ namespace RespawnApi.Application.Services
                     ShowStderr = true,
                     Tail = lines.ToString(),
                     Timestamps = true,
-                    Since = since?.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture)
+                    Since = since?.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ", System.Globalization.CultureInfo.InvariantCulture)
                 };
-                using var logsStream = await _client.Containers.GetContainerLogsAsync(containerId, parameters, CancellationToken.None);
-                if (logsStream == null) { _logger.LogWarning("Nepodařilo se získat stream logů pro kontejner {ContainerId}.", containerId); return logLines; }
+                // GetContainerLogsAsync returns a MultiplexedStream
+                using var logsStreamMultiplexed = await _client.Containers.GetContainerLogsAsync(containerId, parameters, CancellationToken.None);
 
-                var buffer = new byte[8192]; // Větší buffer
-                var completeLog = new StringBuilder();
-                int bytesRead;
-
-                // Čtení streamu po částech
-                while ((bytesRead = await logsStream.ReadAsync(buffer, 0, buffer.Length, CancellationToken.None)) > 0)
+                if (logsStreamMultiplexed == null)
                 {
-                    // Zde je potřeba demultiplexovat stdout a stderr streamy.
-                    // Docker stream má 8-bajtovou hlavičku:
-                    // 1. bajt: typ streamu (0 = stdin, 1 = stdout, 2 = stderr)
-                    // 2-4. bajt: padding (0)
-                    // 5-8. bajt: délka zprávy (BigEndian uint32)
-                    int offset = 0;
-                    while (offset + 8 <= bytesRead)
+                    _logger.LogWarning("Nepodařilo se získat stream logů pro kontejner {ContainerId}.", containerId);
+                    return logLines;
+                }
+
+                // Demultiplex the stream to get stdout and stderr separately
+
+                // Replace this line:
+                // (string stdout, string stderr) = await logsStreamMultiplexed.ReadOutputToEndAsync(CancellationToken.None);
+
+                // With the following implementation:
+                var stdoutBuilder = new StringBuilder();
+                var stderrBuilder = new StringBuilder();
+                var buffer = new byte[8192];
+                var result = new List<(string Type, string Line)>();
+
+                while (true)
+                {
+                    var readResult = await logsStreamMultiplexed.ReadAsync(buffer, 0, buffer.Length, CancellationToken.None);
+                    if (readResult == 0) break;
+
+                    var output = Encoding.UTF8.GetString(buffer, 0, readResult);
+                    var liness = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+                    foreach (var line in liness)
                     {
-                        // byte streamType = buffer[offset]; // 1 pro stdout, 2 pro stderr
-                        uint length = ((uint)buffer[offset + 4] << 24) | ((uint)buffer[offset + 5] << 16) | ((uint)buffer[offset + 6] << 8) | buffer[offset + 7];
-                        offset += 8;
-                        if (offset + length <= bytesRead)
+                        if (line.StartsWith("stdout:"))
                         {
-                            completeLog.Append(Encoding.UTF8.GetString(buffer, offset, (int)length));
-                            offset += (int)length;
+                            stdoutBuilder.AppendLine(line.Substring(7).Trim());
                         }
-                        else
+                        else if (line.StartsWith("stderr:"))
                         {
-                            // Neúplná zpráva v bufferu, potřeba dočíst zbytek
-                            completeLog.Append(Encoding.UTF8.GetString(buffer, offset, bytesRead - offset));
-                            break;
+                            stderrBuilder.AppendLine(line.Substring(7).Trim());
                         }
                     }
                 }
-                logLines.AddRange(completeLog.ToString().Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries));
+
+                string stdout = stdoutBuilder.ToString();
+                string stderr = stderrBuilder.ToString();
+
+                if (!string.IsNullOrEmpty(stdout))
+                {
+                    logLines.AddRange(stdout.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries));
+                }
+                if (!string.IsNullOrEmpty(stderr))
+                {
+                    _logger.LogWarning("Stderr for container {ContainerId}: {StdErrOutput}", containerId, stderr);
+                    logLines.AddRange(stderr.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries));
+                }
+
                 _logger.LogInformation("Načteno {Count} řádků logů pro kontejner {ContainerId}.", logLines.Count, containerId);
             }
             catch (DockerContainerNotFoundException) { _logger.LogWarning("Kontejner {ContainerId} nenalezen při GetContainerLogsAsync.", containerId); logLines.Add("Kontejner nenalezen."); }
@@ -196,7 +282,86 @@ namespace RespawnApi.Application.Services
             return logLines;
         }
 
-        // --- Nové metody pro Docker Admin ---
+        public async Task StreamContainerLogsAsync(string containerId, Func<string, Task> onLogLineReceived, CancellationToken cancellationToken)
+        {
+            _logger.LogInformation("Zahajuji streamování logů pro kontejner {ContainerId}", containerId);
+            MultiplexedStream? logsStreamMultiplexed = null;
+            try
+            {
+                var parameters = new ContainerLogsParameters
+                {
+                    ShowStdout = true,
+                    ShowStderr = true,
+                    Follow = true,
+                    Timestamps = true,
+                    Tail = "50"
+                };
+
+                // Updated to use the correct overload with the 'tty' parameter
+                logsStreamMultiplexed = await _client.Containers.GetContainerLogsAsync(containerId, false, parameters, cancellationToken);
+
+                if (logsStreamMultiplexed == null)
+                {
+                    _logger.LogWarning("Nepodařilo se získat multiplexovaný stream logů pro kontejner {ContainerId} pro streamování.", containerId);
+                    await onLogLineReceived($"[SYSTEM] Nepodařilo se připojit k logům kontejneru {containerId}.");
+                    return;
+                }
+
+                // With the following implementation:
+                var buffer = new byte[8192];
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    var readResult = await logsStreamMultiplexed.ReadOutputAsync(buffer, 0, buffer.Length, cancellationToken);
+                    if (readResult.Count == 0) break;
+
+                    var output = Encoding.UTF8.GetString(buffer, 0, readResult.Count);
+                    var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+                    foreach (var line in lines)
+                    {
+                        if (cancellationToken.IsCancellationRequested) break;
+                        await onLogLineReceived(line.TrimEnd('\r', '\n'));
+                    }
+                }
+
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    _logger.LogInformation("Streamování logů pro kontejner {ContainerId} bylo zrušeno (po smyčce).", containerId);
+                    await onLogLineReceived($"[SYSTEM] Streamování logů pro kontejner {containerId} bylo zrušeno.");
+                }
+                else
+                {
+                    _logger.LogInformation("Stream logů pro kontejner {ContainerId} byl přirozeně ukončen.", containerId);
+                    await onLogLineReceived($"[SYSTEM] Stream logů pro kontejner {containerId} byl ukončen.");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("Streamování logů pro kontejner {ContainerId} bylo zrušeno (OperationCanceledException).", containerId);
+                await onLogLineReceived($"[SYSTEM] Streamování logů pro kontejner {containerId} bylo zrušeno.");
+            }
+            catch (DockerContainerNotFoundException)
+            {
+                _logger.LogWarning("Kontejner {ContainerId} nenalezen při pokusu o streamování logů.", containerId);
+                await onLogLineReceived($"[SYSTEM] Kontejner {containerId} nenalezen.");
+            }
+            catch (IOException ioex) when (ioex.InnerException is SocketException se && (se.SocketErrorCode == SocketError.ConnectionAborted || se.SocketErrorCode == SocketError.OperationAborted))
+            {
+                _logger.LogInformation(ioex, "Stream logů pro kontejner {ContainerId} byl přerušen (ConnectionAborted/OperationAborted). Pravděpodobně zrušeno.", containerId);
+                await onLogLineReceived($"[SYSTEM] Streamování logů pro kontejner {containerId} bylo přerušeno.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Chyba při streamování logů kontejneru {ContainerId}", containerId);
+                await onLogLineReceived($"[SYSTEM] Chyba při streamování logů: {ex.Message}");
+            }
+            finally
+            {
+                logsStreamMultiplexed?.Dispose(); // Ensure stream is disposed
+                _logger.LogInformation("Streamování logů pro kontejner {ContainerId} bylo definitivně ukončeno (finally block).", containerId);
+            }
+        }
+
         public async Task<IEnumerable<DockerVolumeDto>> ListVolumesAsync()
         {
             try
@@ -208,7 +373,6 @@ namespace RespawnApi.Application.Services
                     Driver = v.Driver,
                     CreatedAt = DateTime.TryParse(v.CreatedAt, out var dt) ? dt : default,
                     Labels = v.Labels is Dictionary<string, string> dict ? dict : v.Labels?.ToDictionary(kvp => kvp.Key, kvp => kvp.Value) ?? new Dictionary<string, string>(),
-                    // SizeBytes by vyžadovalo 'docker system df -v' nebo parsování z 'docker volume inspect' - složitější
                 }) ?? Enumerable.Empty<DockerVolumeDto>();
             }
             catch (Exception ex) { _logger.LogError(ex, "Chyba při výpisu Docker volumes."); return Enumerable.Empty<DockerVolumeDto>(); }
@@ -249,7 +413,7 @@ namespace RespawnApi.Application.Services
                 var response = await _client.Images.ListImagesAsync(new ImagesListParameters { All = all });
                 return response.Select(i => new DockerImageDto
                 {
-                    Id = i.ID.Split(':').Last().Substring(0, 12), // Krátké ID
+                    Id = i.ID.Split(':').LastOrDefault()?.Substring(0, 12) ?? i.ID.Substring(0, Math.Min(12, i.ID.Length)),
                     FullId = i.ID,
                     RepoTags = i.RepoTags?.ToList() ?? new List<string>(),
                     RepoDigests = i.RepoDigests?.ToList() ?? new List<string>(),

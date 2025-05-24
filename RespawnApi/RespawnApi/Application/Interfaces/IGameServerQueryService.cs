@@ -1,23 +1,25 @@
-﻿using RespawnApi.Application.DTOs.GameServer;
+﻿// File: haha/RespawnApi/RespawnApi/Application/Interfaces/IGameServerQueryService.cs
+using RespawnApi.Application.DTOs.GameServer;
+using RespawnApi.Domain.Entities; // Potřebné pro GameServer entitu
+using System.Threading.Tasks;
 
 namespace RespawnApi.Application.Interfaces
 {
     /// <summary>
-    /// Defines the contract for a service that queries game server details.
+    /// Defines the contract for a service that orchestrates querying game server details using appropriate strategies.
     /// </summary>
     public interface IGameServerQueryService
     {
         /// <summary>
-        /// Asynchronously gets detailed information about a game server using the A2S protocol.
+        /// Asynchronously gets detailed information about a game server by selecting and executing the appropriate strategy.
         /// </summary>
-        /// <param name="ipAddress">The IP address of the game server.</param>
-        /// <param name="queryPort">The query port of the game server.</param>
-        /// <param name="basicServerInfo">Basic information about the server, potentially used for context or fallback.</param>
+        /// <param name="serverEntity">The game server entity from the database.</param>
+        /// <param name="basicDto">A basic DTO projection of the server entity.</param>
         /// <returns>
         /// A task that represents the asynchronous operation.
         /// The task result contains a <see cref="GameServerDetailDto"/> with detailed server information,
-        /// or null if the query fails or the server does not respond.
+        /// or a DTO with basic info and error details if querying fails.
         /// </returns>
-        Task<GameServerDetailDto?> GetServerDetailsA2SAsync(string ipAddress, int queryPort, GameServerDto basicServerInfo);
+        Task<GameServerDetailDto?> GetServerDetailsAsync(GameServer serverEntity, GameServerDto basicDto);
     }
 }

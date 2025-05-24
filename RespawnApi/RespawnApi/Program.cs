@@ -1,14 +1,17 @@
-﻿using System.Text;
+﻿// File: haha/RespawnApi/RespawnApi/Program.cs
+using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using RespawnApi.Application.Interfaces;
 using RespawnApi.Application.Services;
+using RespawnApi.Application.Services.Factories;
+using RespawnApi.Application.Services.Strategies;
 using RespawnApi.Data;
 using RespawnApi.DataAccess.Interfaces;
 using RespawnApi.DataAccess.Repositories;
-using RespawnApi.Hubs; // Pro PollHub, PresenceHub a GameServerHub
+using RespawnApi.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,15 +20,15 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowRespawnApp", policyBuilder =>
     {
-        policyBuilder.WithOrigins("http://localhost:5173")
+        policyBuilder.WithOrigins("http://localhost:5173") // Frontend URL
                      .AllowAnyHeader()
                      .AllowAnyMethod()
-                     .AllowCredentials();
+                     .AllowCredentials(); // Required for SignalR with credentials
     });
 });
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-var serverVersionsString = builder.Configuration["MySqlSettings:ServerVersion"] ?? "10.3.32";
+var serverVersionsString = builder.Configuration["MySqlSettings:ServerVersion"] ?? "10.3.32"; // Default version if not specified
 var serverVersion = new MySqlServerVersion(new Version(serverVersionsString));
 
 builder.Services.AddDbContext<RespawnDbContext>(options =>
@@ -49,8 +52,9 @@ builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
 .AddDefaultTokenProviders();
 
 builder.Services.AddIdentityCore<IdentityUser>()
-    .AddRoles<IdentityRole>()
+    .AddRoles<IdentityRole>() // Ensure roles are available for IdentityCore
     .AddEntityFrameworkStores<RespawnDbContext>();
+
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var key = Encoding.ASCII.GetBytes(jwtSettings["Key"] ??
@@ -65,7 +69,7 @@ builder.Services.AddAuthentication(options =>
 .AddJwtBearer(options =>
 {
     options.SaveToken = true;
-    options.RequireHttpsMetadata = false;
+    options.RequireHttpsMetadata = false; // Set to true in production
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -75,7 +79,7 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = jwtSettings["Issuer"],
         ValidAudience = jwtSettings["Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(key),
-        ClockSkew = TimeSpan.Zero
+        ClockSkew = TimeSpan.Zero // Remove clock skew for precise expiration
     };
     options.Events = new JwtBearerEvents
     {
@@ -86,7 +90,8 @@ builder.Services.AddAuthentication(options =>
             if (!string.IsNullOrEmpty(accessToken) &&
                 (path.StartsWithSegments("/pollHub") ||
                  path.StartsWithSegments("/presenceHub") ||
-                 path.StartsWithSegments("/gameServerHub"))) // <-- Přidáno
+                 path.StartsWithSegments("/gameServerHub") ||
+                 path.StartsWithSegments("/serverLogHub"))) // <-- ADDED /serverLogHub
             {
                 context.Token = accessToken;
             }
@@ -101,11 +106,29 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddSingleton<IUserPresenceService, UserPresenceService>();
 builder.Services.AddScoped<IGameServerRepository, GameServerRepository>();
 builder.Services.AddSingleton<IDockerService, DockerService>();
-builder.Services.AddScoped<IGameServerQueryService, GameServerQueryService>(); // <-- ADD THIS LINE
+builder.Services.AddScoped<IGameServerQueryService, GameServerQueryService>();
 builder.Services.AddHostedService<GameServerStatusMonitorService>();
 
+// Registrace strategií
+builder.Services.AddScoped<A2SGoldSourceStrategy>();
+// Zde byste registrovali další strategie, např.
+// builder.Services.AddScoped<A2SSourceStrategy>();
+// builder.Services.AddScoped<RconMinecraftStrategy>();
+builder.Services.AddScoped<NoDetailsStrategy>();
+
+// Registrace továrny strategií
+builder.Services.AddScoped<IGameServerInfoStrategyFactory, GameServerInfoStrategyFactory>();
+
+// Registrace hlavní služby pro dotazování (která používá továrnu)
+// Stará IGameServerQueryService (s UdpClient) je nyní A2SGoldSourceStrategy.
+// Nová IGameServerQueryService je ta, co používá factory.
+builder.Services.AddScoped<IGameServerQueryService, GameServerQueryService>();
+
+builder.Services.AddHostedService<GameServerStatusMonitorService>();
+
+
 builder.Services.AddControllers();
-builder.Services.AddSignalR();
+builder.Services.AddSignalR(); // Configure SignalR
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -133,6 +156,7 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+// Seed database
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -165,17 +189,25 @@ async Task SeedRolesAndAdminAsync(UserManager<IdentityUser> userManager, RoleMan
     if (adminUser == null)
     {
         var newAdmin = new IdentityUser { UserName = "patricek", Email = "patrik.mrnka12@gmail.com", EmailConfirmed = true };
-        var createAdminResult = await userManager.CreateAsync(newAdmin, "a1234");
+        var createAdminResult = await userManager.CreateAsync(newAdmin, "a1234"); // Zvažte silnější heslo
         if (createAdminResult.Succeeded)
         {
             await userManager.AddToRoleAsync(newAdmin, RespawnApi.Domain.Enums.UserRoles.Administrator);
             logger.LogInformation("Uzivatel 'patricek' byl vytvoren a prirazen do role Administrator.");
+
+            // Create UserProfile for the admin
             var userProfileRepository = services.GetRequiredService<RespawnApi.DataAccess.Interfaces.IUserProfileRepository>();
             var adminProfile = new RespawnApi.Domain.Entities.UserProfile { UserId = newAdmin.Id, Nickname = newAdmin.UserName!, AvatarUrl = null };
             await userProfileRepository.AddAsync(adminProfile);
             logger.LogInformation("UserProfile pro 'patricek' byl vytvoren.");
         }
-        else { foreach (var error in createAdminResult.Errors) { logger.LogError("Chyba pri vytvareni uzivatele 'patricek': {ErrorDescription}", error.Description); } }
+        else
+        {
+            foreach (var error in createAdminResult.Errors)
+            {
+                logger.LogError("Chyba pri vytvareni uzivatele 'patricek': {ErrorDescription}", error.Description);
+            }
+        }
     }
     else
     {
@@ -188,12 +220,22 @@ async Task SeedRolesAndAdminAsync(UserManager<IdentityUser> userManager, RoleMan
     }
 }
 
-if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
 app.UseCors("AllowRespawnApp");
-app.UseAuthentication();
+
+app.UseAuthentication(); // Must be before UseAuthorization
 app.UseAuthorization();
+
 app.MapControllers();
 app.MapHub<PollHub>("/pollHub");
 app.MapHub<PresenceHub>("/presenceHub");
-app.MapHub<GameServerHub>("/gameServerHub"); // <-- Přidáno: Mapování GameServerHubu
+app.MapHub<GameServerHub>("/gameServerHub");
+app.MapHub<ServerLogHub>("/serverLogHub"); // <-- ADDED MAPPING FOR ServerLogHub
+
 app.Run();

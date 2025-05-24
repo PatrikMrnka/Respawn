@@ -1,6 +1,11 @@
-﻿using RespawnApi.Domain.Enums;
+﻿// File: haha/RespawnApi/RespawnApi/Application/Interfaces/IDockerService.cs
+using RespawnApi.Domain.Enums;
 using RespawnApi.Domain.Entities;
 using RespawnApi.Application.DTOs.DockerAdmin;
+using System; // Required for Func and DateTime
+using System.Collections.Generic; // Required for IEnumerable and List
+using System.Threading; // Required for CancellationToken
+using System.Threading.Tasks; // Required for Task
 
 namespace RespawnApi.Application.Interfaces
 {
@@ -11,8 +16,16 @@ namespace RespawnApi.Application.Interfaces
         Task<bool> StopContainerAsync(string containerId);
         Task<bool> StartContainerAsync(string containerId);
         Task<bool> RemoveContainerAsync(string containerId, bool removeAssociatedVolume);
-        // Upraveno: since pro získání logů od určitého času, lines pro počet řádků
         Task<List<string>> GetContainerLogsAsync(string containerId, DateTime? since = null, uint lines = 200);
+
+        /// <summary>
+        /// Asynchronously streams logs from a specified container.
+        /// </summary>
+        /// <param name="containerId">The ID of the container.</param>
+        /// <param name="onLogLineReceived">A callback function that is invoked for each log line received. The string parameter is the log line.</param>
+        /// <param name="cancellationToken">A token to signal cancellation of the log streaming.</param>
+        /// <returns>A task representing the asynchronous log streaming operation.</returns>
+        Task StreamContainerLogsAsync(string containerId, Func<string, Task> onLogLineReceived, CancellationToken cancellationToken);
 
         Task<IEnumerable<DockerVolumeDto>> ListVolumesAsync();
         Task<bool> RemoveVolumeAsync(string volumeName, bool force = false);

@@ -21,10 +21,12 @@
         </v-col>
         <v-col>
           <v-card-title class="text-h3 font-oxanium page-title mb-0 pb-0">
-            {{ serverDetails.name }} </v-card-title>
+            {{ serverDetails.name }}
+          </v-card-title>
           <v-card-subtitle class="font-inter text-subtitle-1 mt-1">
             <span :class="`status-text-${serverDetails.status.toString().toLowerCase()}`">
-              {{ getServerStatusText(serverDetails.status) }} </span>
+              {{ getServerStatusText(serverDetails.status) }}
+            </span>
             <span v-if="serverDetails.ipAddress && serverDetails.port"> | {{ serverDetails.ipAddress }}:{{ serverDetails.port }} </span>
             <span v-else-if="serverDetails.ipAddress"> | {{ serverDetails.ipAddress }}</span>
           </v-card-subtitle>
@@ -73,7 +75,8 @@
               <v-list-item-title class="font-weight-bold">Vytvořeno (DB):</v-list-item-title>
               <v-list-item-subtitle>{{ formatFullDateTime(serverDetails.createdAt) }}</v-list-item-subtitle>
             </v-list-item>
-             <v-list-item :prepend-icon="mdiTextBoxOutline" class="info-item" v-if="serverDetails.statusDetails && !a2sDisplayMessage"> <v-list-item-title class="font-weight-bold">Detail stavu (DB):</v-list-item-title>
+             <v-list-item :prepend-icon="mdiTextBoxOutline" class="info-item" v-if="serverDetails.statusDetails && !a2sDisplayMessage">
+              <v-list-item-title class="font-weight-bold">Detail stavu (DB):</v-list-item-title>
               <v-list-item-subtitle style="white-space: pre-wrap;">{{ serverDetails.statusDetails }}</v-list-item-subtitle>
             </v-list-item>
           </v-list>
@@ -94,7 +97,8 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="player in serverDetails.players" :key="player.name"> <td class="font-inter">{{ player.name }}</td>
+              <tr v-for="player in serverDetails.players" :key="player.name">
+                <td class="font-inter">{{ player.name }}</td>
                 <td class="text-right font-roboto-mono">{{ player.score }}</td>
                 <td class="text-right font-roboto-mono">{{ formatDuration(player.duration) }}</td>
               </tr>
@@ -102,6 +106,33 @@
           </v-table>
         </v-col>
       </v-row>
+
+      <v-row v-if="canManageServer && serverDetails.containerId" class="mt-6">
+        <v-col cols="12">
+          <div class="d-flex justify-space-between align-center mb-3">
+            <h3 class="text-h5 font-exo2 section-title mb-0">Logy Kontejneru</h3>
+            <v-btn 
+              @click="toggleLiveLogs" 
+              :color="isLiveLogging ? 'error' : 'secondary'"
+              class="futuristic-btn-secondary"
+              :loading="logLoadingState"
+              :prepend-icon="isLiveLogging ? mdiStopCircleOutline : mdiPlayCircleOutline"
+            >
+              {{ isLiveLogging ? 'Zastavit živé logy' : 'Sledovat živé logy' }}
+            </v-btn>
+          </div>
+          <div ref="logContainer" class="realtime-logs-container pa-3">
+            <div v-if="realtimeLogs.length === 0 && !isLiveLogging" class="text-center text-grey-darken-1 font-inter py-5">
+              Pro zobrazení živých logů klikněte na tlačítko "Sledovat živé logy".
+            </div>
+             <div v-if="realtimeLogs.length === 0 && isLiveLogging && !logLoadingState" class="text-center text-grey-darken-1 font-inter py-5">
+              Čekání na logy...
+            </div>
+            <div v-for="(line, index) in realtimeLogs" :key="index" class="log-line" v-html="formatLogLine(line)"></div>
+          </div>
+        </v-col>
+      </v-row>
+
 
       <v-card-actions class="mt-6" v-if="canManageServer">
           <v-spacer></v-spacer>
@@ -116,7 +147,6 @@
             <v-icon left>{{ serverDetails.status === ServerStatus.Online ? mdiStopCircleOutline : mdiPlayCircleOutline }}</v-icon>
             {{ serverDetails.status === ServerStatus.Online ? 'Stop' : 'Start' }}
           </v-btn>
-          <v-btn :icon="mdiConsoleLine" color="info" variant="text" @click="viewServerLogs(serverDetails)" :loading="logLoading" title="Zobrazit logy" class="mx-1" :disabled="!serverDetails.containerId || serverDetails.status === ServerStatus.PendingCreation"></v-btn>
           <v-btn :icon="mdiDelete" color="error" variant="text" @click="confirmDeleteServer(serverDetails)" :loading="deleteLoading" title="Smazat server" class="mx-1" :disabled="isActionDisabled(serverDetails.status) && serverDetails.status !== ServerStatus.Error && serverDetails.status !== ServerStatus.Offline"></v-btn>
       </v-card-actions>
 
@@ -125,21 +155,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, onBeforeUnmount, watch } from 'vue';
+import { ref, onMounted, computed, onBeforeUnmount, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getGameServerDetails, type GameServerDetailDtoFE, type PlayerDetailDtoFE } from '@/services/gameServerService';
 import { GameType, ServerStatus, UserRoles } from '@/types/enums';
 import { useAuthStore } from '@/stores/authStore';
 import Swal from 'sweetalert2';
-import { signalRService } from '@/services/signalRService';
+import { signalRService } from '@/services/signalrService'; // For A2S/Status updates
+import { serverLogSignalr } from '@/services/serverLogSignalrService'; // For live logs
 import type { GameServerDto as BasicGameServerDto, GameServerStatusUpdateDtoFE as BasicStatusUpdateDto } from '@/views/ServersView.txt';
-import { getContainerLogs } from '@/services/dockerAdminService'; // Assuming start/stop/delete are handled by GameServersController backend
-import Convert from 'ansi-to-html';
+// Removed getContainerLogs as we are implementing live logs
+import Convert from 'ansi-to-html'; // For formatting ANSI in logs
 
 import {
   mdiArrowLeft, mdiTag, mdiMapMarker, mdiAccountGroup, mdiShieldCheck, mdiInformationOutline, mdiServerNetwork, mdiClockTimeFourOutline, mdiTextBoxOutline, mdiAccountOff,
   mdiServerOff, mdiAlphaTBoxOutline, mdiPuzzleOutline, mdiServer,
-  mdiPlayCircleOutline, mdiStopCircleOutline, mdiConsoleLine, mdiDelete, mdiAlertCircleOutline
+  mdiPlayCircleOutline, mdiStopCircleOutline, mdiDelete, mdiAlertCircleOutline
+  // mdiConsoleLine removed as it's replaced by live logs button
 } from '@mdi/js';
 
 interface GameServerDto extends BasicGameServerDto {}
@@ -152,54 +184,49 @@ const authStore = useAuthStore();
 const serverId = ref<string>(route.params.id as string);
 const serverDetails = ref<GameServerDetailDtoFE | null>(null);
 const loading = ref(true);
-const apiError = ref<string | null>(null); // For general API errors (404, 500)
+const apiError = ref<string | null>(null);
 
 const actionLoading = ref(false);
-const logLoading = ref(false);
+// const logLoading = ref(false); // Replaced by logLoadingState
 const deleteLoading = ref(false);
 
 const GAME_SERVER_HUB_PATH = "/gameServerHub";
 
-// Computed property to determine the message to display regarding A2S/Offline status
-const a2sDisplayMessage = computed<string | null>(() => {
-  if (!serverDetails.value) return null; // No data yet
+// Real-time logs state
+const realtimeLogs = ref<string[]>([]);
+const isLiveLogging = ref(false);
+const logLoadingState = ref(false); // For "Sledovat/Zastavit" button loading state
+const logContainer = ref<HTMLElement | null>(null); // Ref for the log container div
+const ansiConverter = new Convert({ newline: true, escapeXML: true, fg: '#FFF', bg: '#1A2033' });
 
+
+const a2sDisplayMessage = computed<string | null>(() => {
+  if (!serverDetails.value) return null;
   if (serverDetails.value.status !== ServerStatus.Online) {
     return "Herní server je aktuálně offline.";
   }
-
-  // Server is Online, check if A2S data is meaningfully absent
-  // Backend's StatusDetails should indicate A2S failure for an online server
   const hasEssentialA2sData = serverDetails.value.mapName || serverDetails.value.gameName;
-  // We consider players list separately as it might be empty even if server responds to A2S_INFO
-
   if (!hasEssentialA2sData) {
-    // Check statusDetails for specific A2S failure messages from backend
     if (serverDetails.value.statusDetails && 
         (serverDetails.value.statusDetails.toLowerCase().includes("a2s dotaz selhal") ||
          serverDetails.value.statusDetails.toLowerCase().includes("nepodařilo se načíst detailní informace") ||
          serverDetails.value.statusDetails.toLowerCase().includes("server neodpovídá na a2s dotazy")
         )) {
-      return serverDetails.value.statusDetails; // Use backend's specific message
+      return serverDetails.value.statusDetails;
     }
-    // Generic message if backend didn't provide a specific A2S error for an online server but essential data is missing
     return "Herní server je online, ale nepodařilo se načíst detailní informace (server neodpovídá na A2S dotazy).";
   }
-
-  return null; // A2S data seems present, no special message needed
+  return null;
 });
-
 
 const fetchDetails = async () => {
   loading.value = true;
   apiError.value = null;
-  // a2sError.value = null; // Reset a2sError before fetching
   try {
     const details = await getGameServerDetails(serverId.value);
     if (details) {
       serverDetails.value = details;
     } else {
-      // This case is usually when getGameServerDetails itself returns null due to 404 or auth error handled by Swal in service
       apiError.value = 'Nepodařilo se načíst informace o serveru nebo server neexistuje.';
       serverDetails.value = null;
     }
@@ -210,10 +237,6 @@ const fetchDetails = async () => {
     loading.value = false;
   }
 };
-
-// Watch for external changes to serverDetails (e.g. from SignalR)
-// This is implicitly handled by the computed property `a2sDisplayMessage`
-// which re-evaluates whenever serverDetails.value changes.
 
 const getGameIcon = (gameType: GameType) => ({
   [GameType.CounterStrike]: mdiServer,
@@ -256,13 +279,11 @@ const formatDuration = (seconds: number): string => {
   return `${h > 0 ? h + 'h ' : ''}${m > 0 ? m + 'm ' : ''}${s}s`;
 };
 
-const handleReceiveGameServerUpdate = (updatedServer: GameServerDetailDtoFE | GameServerDto) => { // Accept both for broader compatibility
+const handleReceiveGameServerUpdate = (updatedServer: GameServerDetailDtoFE | GameServerDto) => {
   if (updatedServer.gameServerId === serverId.value) {
-    // Merge carefully, ensuring all fields from GameServerDetailDtoFE are potentially updated
     serverDetails.value = { 
-        ...(serverDetails.value || {} as GameServerDetailDtoFE), // Keep existing details if not in updatedServer
-        ...updatedServer, // Overwrite with new data
-        // Ensure players list is handled correctly if updatedServer is just GameServerDto
+        ...(serverDetails.value || {} as GameServerDetailDtoFE), 
+        ...updatedServer, 
         players: (updatedServer as GameServerDetailDtoFE).players || serverDetails.value?.players || [] 
     };
     console.log("Detail serveru {ServerId} aktualizován přes SignalR (plný update).", serverId.value);
@@ -278,34 +299,76 @@ const handleReceiveGameServerStatusUpdate = (statusUpdate: GameServerStatusUpdat
         serverDetails.value.status = ServerStatus.Error;
     }
     console.log("Stav serveru {ServerId} aktualizován přes SignalR. Nový stav: {Status}, Detail: {Details}", serverId.value, serverDetails.value.status, serverDetails.value.statusDetails);
-    
-    // If status becomes Online, and A2S data was previously missing, trigger a full refresh of details
-    // to attempt fetching A2S data again.
     if (statusUpdate.newOverallStatus === ServerStatus.Online && a2sDisplayMessage.value) {
         console.log("Server {ServerId} is now Online, attempting to refresh details for A2S data.", serverId.value);
-        fetchDetails(); // Re-fetch all details
+        fetchDetails();
     }
   }
 };
+
+const handleNewLogLine = (line: string) => {
+  realtimeLogs.value.push(line);
+  if (realtimeLogs.value.length > 200) { // Keep only the last 200 lines
+    realtimeLogs.value.shift();
+  }
+  // Scroll to bottom
+  nextTick(() => {
+    if (logContainer.value) {
+      logContainer.value.scrollTop = logContainer.value.scrollHeight;
+    }
+  });
+};
+
+const formatLogLine = (line: string) => {
+    return ansiConverter.toHtml(line);
+};
+
+const toggleLiveLogs = async () => {
+  if (!serverDetails.value?.gameServerId) return;
+  logLoadingState.value = true;
+
+  if (isLiveLogging.value) {
+    await serverLogSignalr.unwatchLogs(serverDetails.value.gameServerId);
+    isLiveLogging.value = false;
+    // realtimeLogs.value.push("[SYSTEM] Sledování logů zastaveno uživatelem.");
+  } else {
+    realtimeLogs.value = []; // Clear previous logs
+    const connected = await serverLogSignalr.startConnection();
+    if (connected) {
+      await serverLogSignalr.watchLogs(serverDetails.value.gameServerId, handleNewLogLine);
+      isLiveLogging.value = true;
+    } else {
+      realtimeLogs.value.push("[SYSTEM ERROR] Nepodařilo se připojit k službě logů.");
+    }
+  }
+  logLoadingState.value = false;
+};
+
 
 onMounted(async () => {
   await fetchDetails();
   if (authStore.isLoggedIn) {
     try {
-      await signalRService.startConnection(GAME_SERVER_HUB_PATH);
+      await signalRService.startConnection(GAME_SERVER_HUB_PATH); // For server status/details updates
       signalRService.on(GAME_SERVER_HUB_PATH, "ReceiveGameServerUpdate", handleReceiveGameServerUpdate as (updatedServer: GameServerDto) => void);
       signalRService.on(GAME_SERVER_HUB_PATH, "ReceiveGameServerStatusUpdate", handleReceiveGameServerStatusUpdate as (statusUpdate: BasicStatusUpdateDto) => void);
     } catch (err) {
-      console.error("SignalR connection error on GameServerDetailView:", err);
+      console.error("SignalR (GameServerHub) connection error on GameServerDetailView:", err);
     }
   }
 });
 
-onBeforeUnmount(() => {
+onBeforeUnmount(async () => {
   if (authStore.isLoggedIn) {
     signalRService.off(GAME_SERVER_HUB_PATH, "ReceiveGameServerUpdate", handleReceiveGameServerUpdate as (updatedServer: GameServerDto) => void);
     signalRService.off(GAME_SERVER_HUB_PATH, "ReceiveGameServerStatusUpdate", handleReceiveGameServerStatusUpdate as (statusUpdate: BasicStatusUpdateDto) => void);
+    // GameServerHub connection is likely managed globally or by ServersView, so no stop here.
   }
+  // Stop live logging if active when component is unmounted
+  if (isLiveLogging.value && serverDetails.value?.gameServerId) {
+    await serverLogSignalr.unwatchLogs(serverDetails.value.gameServerId);
+  }
+  await serverLogSignalr.stopConnection(); // Ensure log hub connection is closed
 });
 
 const canManageServer = computed(() => {
@@ -354,7 +417,6 @@ const toggleServerState = async (server: GameServerDetailDtoFE) => {
             throw new Error(errData.message || `Chyba při ${action} serveru.`);
         }
         Swal.fire({...getFuturisticSwalBaseOptions('Příkaz odeslán'), text: `Požadavek na ${action} serveru byl odeslán. Stav se brzy aktualizuje.`, icon: 'info', timer: 2000, showConfirmButton: false});
-        // State will be updated via SignalR
     } catch (err: any) {
         Swal.fire({...getFuturisticSwalBaseOptions('Chyba!'), text: err.message, icon: 'error'});
     } finally {
@@ -362,30 +424,7 @@ const toggleServerState = async (server: GameServerDetailDtoFE) => {
     }
 };
 
-const viewServerLogs = async (server: GameServerDetailDtoFE) => {
-    if (!server.containerId) {
-        Swal.fire({...getFuturisticSwalBaseOptions('Chyba'), text: 'Server nemá přiřazené ID kontejneru.', icon: 'error'});
-        return;
-    }
-    logLoading.value = true;
-    try {
-        const logs = await getContainerLogs(server.containerId, 500);
-        const convert = new Convert({ fg: '#FFF', bg: '#000', newline: true, escapeXML: true });
-        const formattedLogs = convert.toHtml(logs);
-        
-        Swal.fire({
-            ...getFuturisticSwalBaseOptions(`Logy serveru: ${server.name}`),
-            html: `<pre style="text-align:left;"class="server-logs-pre">${formattedLogs}</pre>`,
-            width: '90vw',
-            customClass: { popup: 'futuristic-swal-popup logs-swal', htmlContainer: 'futuristic-swal-html-container font-inter' },
-            confirmButtonText: 'Zavřít'
-        });
-    } catch (e: any) {
-        Swal.fire({...getFuturisticSwalBaseOptions('Chyba!'), text: e.message, icon: 'error'});
-    } finally {
-        logLoading.value = false;
-    }
-};
+// viewServerLogs (batch) is removed, replaced by toggleLiveLogs
 
 const confirmDeleteServer = (server: GameServerDetailDtoFE) => {
     deleteLoading.value = true;
@@ -479,7 +518,7 @@ const confirmDeleteServer = (server: GameServerDetailDtoFE) => {
 .status-text-offline { color: var(--v-theme-error); }
 .status-text-starting, .status-text-restarting { color: var(--v-theme-info); }
 .status-text-stopping { color: var(--v-theme-warning); }
-.status-text-error { color: var(--v-theme-error); } /* Corrected from deep-orange-accent-4 */
+.status-text-error { color: var(--v-theme-error); }
 .status-text-pendingcreation, .status-text-unknown { color: var(--v-theme-text-secondary); }
 
 .futuristic-alert {
@@ -494,16 +533,30 @@ const confirmDeleteServer = (server: GameServerDetailDtoFE) => {
   background-color: rgba(var(--v-theme-warning-rgb), 0.1);
 }
 
-
-:deep(.server-logs-pre) {
-    text-align: left; max-height: 70vh; overflow-y: auto;
-    background-color: #010409; color: #c9d1d9;
-    padding: 15px; border-radius: 6px; font-size: 0.8rem;
-    white-space: pre-wrap; word-break: break-all;
-    border: 1px solid rgba(var(--v-theme-primary-rgb), 0.3);
-    font-family: 'Roboto Mono', monospace;
+.realtime-logs-container {
+  background-color: #010409; /* Tmavé pozadí pro logy */
+  color: #c9d1d9; /* Světlý text */
+  border: 1px solid rgba(var(--v-theme-primary-rgb), 0.3);
+  border-radius: 6px;
+  height: 400px; /* Nebo dle potřeby */
+  overflow-y: auto;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 0.8rem;
+  white-space: pre-wrap; /* Zachování mezer a zalomení */
+  word-break: break-all;
 }
-:deep(.logs-swal .swal2-html-container) { max-width: 100%; }
+.log-line {
+  padding: 2px 5px;
+  border-bottom: 1px solid rgba(255,255,255,0.05); /* Jemný oddělovač řádků */
+}
+.log-line:last-child {
+  border-bottom: none;
+}
+/* Styly pro ANSI barvy, pokud je budete implementovat na frontendu */
+:deep(.realtime-logs-container span) { /* Cílení na spany generované ansi-to-html */
+    display: inline !important; /* Ujistěte se, že spany zůstávají inline */
+}
+
 
 .futuristic-btn {
   border-color: rgba(var(--v-theme-border-color-rgb), 0.7);
