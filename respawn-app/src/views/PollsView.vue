@@ -464,7 +464,7 @@ const getLocalDateTimeForInput = (date: Date): string => {
 };
 
 const openCreatePollModal = () => {
-  const iconColor = 'var(--v-theme-primary)';
+  const iconColor = 'white';
   const iconStyle = 'vertical-align: middle; margin-right: 8px;';
   let nextOptionId = 0;
 

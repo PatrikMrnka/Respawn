@@ -79,7 +79,6 @@
               {{ server.status === ServerStatus.Online ? 'Stop' : 'Start' }}
             </v-btn>
             <v-spacer></v-spacer>
-            <v-btn :icon="mdiConsoleLine" color="info" variant="text" @click="viewServerLogs(server)" :loading="actionLoading[server.gameServerId + '_logs']" title="Zobrazit logy" :disabled="!server.containerId || server.status === ServerStatus.PendingCreation"></v-btn>
             <v-btn :icon="mdiDelete" color="error" variant="text" @click="confirmDeleteServer(server)" :loading="actionLoading[server.gameServerId + '_delete']" title="Smazat server" :disabled="isActionDisabled(server.status) && server.status !== ServerStatus.Error && server.status !== ServerStatus.Offline"></v-btn>
           </v-card-actions>
         </v-card>
@@ -330,7 +329,7 @@ const openCreateServerModal = () => {
     const gameTypesOptions = Object.values(GameType).filter(value => typeof value === 'number')
         .map(value => ({ text: getGameTypeText(value as GameType), value: value as GameType }));
     let gameTypesHtml = gameTypesOptions.map(opt => `<option value="${opt.value}">${opt.text}</option>`).join('');
-    const iconColor = 'var(--v-theme-primary)';
+    const iconColor = 'white';
     const iconStyle = 'vertical-align: middle; margin-right: 8px;';
 
     Swal.fire({
@@ -338,15 +337,19 @@ const openCreateServerModal = () => {
         html: `
         <div class="swal-form-container">
             <label for="swal-server-name" class="swal-label"> ${createIconHtml(mdiServer, 18, iconColor, iconStyle)}Název serveru:</label>
-            <input id="swal-server-name" class="swal2-input futuristic-swal-input" placeholder="Můj CS Server">
+            <input id="swal-server-name" class="swal2-input futuristic-swal-input" placeholder="CS Server">
+
             <label for="swal-game-type" class="swal-label mt-3"> ${createIconHtml(mdiTag, 18, iconColor, iconStyle)}Typ hry:</label>
-            <select id="swal-game-type" class="swal2-input futuristic-swal-input"> ${gameTypesHtml} </select>
+            <select id="swal-game-type" style="height: 3rem;"class="swal2-input futuristic-swal-input"> ${gameTypesHtml} </select>
+
             <label for="swal-gs-params" class="swal-label mt-3"> ${createIconHtml(mdiCog, 18, iconColor, iconStyle)}Extra GS_PARAMS (volitelné):</label>
             <input id="swal-gs-params" class="swal2-input futuristic-swal-input" placeholder="-port 27016 +map de_dust2">
         </div>`,
-        customClass: { popup: 'futuristic-swal-popup large-swal', htmlContainer: 'futuristic-swal-html-container font-inter swal-form-container-custom-padding' },
-        confirmButtonText: 'Vytvořit', showCancelButton: true, cancelButtonText: 'Zrušit',
-        focusConfirm: false, showLoaderOnConfirm: true,
+        confirmButtonText: 'Vytvořit',
+        showCancelButton: true,
+        cancelButtonText: 'Zrušit',
+        focusConfirm: false, 
+        showLoaderOnConfirm: true,
         preConfirm: () => {
             const name = (document.getElementById('swal-server-name') as HTMLInputElement).value;
             const gameType = parseInt((document.getElementById('swal-game-type') as HTMLSelectElement).value) as GameType;
@@ -424,25 +427,7 @@ const confirmDeleteServer = (server: GameServerDto) => {
     });
 };
 
-const viewServerLogs = async (server: GameServerDto) => {
-    if (!server.containerId) { Swal.fire({...getFuturisticSwalBaseOptions('Chyba'), text: 'Server nemá přiřazené ID kontejneru.', icon: 'error'}); return; }
-    const actionKey = server.gameServerId + '_logs';
-    actionLoading[actionKey] = true;
-    try {
-        const logs = await getContainerLogs(server.containerId, 500); // Assuming this is from dockerAdminService
-        const convert = new Convert({ fg: '#FFF', bg: '#000', newline: true, escapeXML: true });
-        const formattedLogs = convert.toHtml(logs);
 
-        Swal.fire({
-            ...getFuturisticSwalBaseOptions(`Logy serveru: ${server.name}`),
-            html: `<pre style="text-align:left;"class="server-logs-pre">${formattedLogs}</pre>`,
-            width: '90vw',
-            customClass: { popup: 'futuristic-swal-popup logs-swal', htmlContainer: 'futuristic-swal-html-container font-inter' },
-            confirmButtonText: 'Zavřít'
-        });
-    } catch (e: any) { Swal.fire({...getFuturisticSwalBaseOptions('Chyba!'), text: e.message, icon: 'error'});
-    } finally { actionLoading[actionKey] = false; }
-};
 
 // <-- ADD THIS METHOD -->
 const navigateToDetail = (server: GameServerDto) => {
