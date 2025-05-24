@@ -11,7 +11,7 @@
       </v-col>
     </v-row>
 
-     <v-alert v-if="signalRError" type="warning" density="compact" class="mb-4 font-inter" closable @click:close="signalRError = null">
+    <v-alert v-if="signalRError" type="warning" density="compact" class="mb-4 font-inter" closable @click:close="signalRError = null">
       Chyba real-time spojení pro servery: {{ signalRError }}.
       <v-btn variant="text" size="small" @click="attemptServersReconnect" :loading="reconnectingSignalR">Zkusit znovu</v-btn>
     </v-alert>
@@ -29,20 +29,28 @@
 
     <v-row justify="center" v-if="servers.length > 0">
       <v-col v-for="server in servers" :key="server.gameServerId" cols="12" md="10" lg="10">
-        <v-card class="futuristic-card server-card mb-6" :elevation="server.status === ServerStatus.Online ? 8 : 2" :class="`status-border-${server.status.toString().toLowerCase()}`">
+        <v-card
+          class="futuristic-card server-card mb-6"
+          :elevation="server.status === ServerStatus.Online ? 8 : 2"
+          :class="`status-border-${server.status.toString().toLowerCase()}`"
+          @click="navigateToDetail(server)"
+          :disabled="server.status === ServerStatus.PendingCreation || server.status === ServerStatus.Deleting" 
+          :title="server.status === ServerStatus.PendingCreation || server.status === ServerStatus.Deleting ? 'Server se vytváří/maže, detail není dostupný' : `Zobrazit detail serveru ${server.name}`"
+          hover
+        >
           <v-card-title class="d-flex align-center">
             <v-icon :icon="getGameIcon(server.gameType)" class="mr-3" :color="getOverallStatusColor(server.status)"></v-icon>
             <span class="font-exo2 server-name">{{ server.name }}</span>
             <v-spacer></v-spacer>
-             <v-chip :color="getOverallStatusColor(server.status)" label small class="font-exo2 status-chip mr-1" :title="`Stav: ${getServerStatusText(server.status)}`">
+            <v-chip :color="getOverallStatusColor(server.status)" label small class="font-exo2 status-chip mr-1" :title="`Stav: ${getServerStatusText(server.status)}`">
                 {{ getServerStatusText(server.status) }}
             </v-chip>
-            </v-card-title>
+          </v-card-title>
           <v-card-subtitle class="font-inter">
             Typ: {{ getGameTypeText(server.gameType) }}
             <span v-if="server.ipAddress && server.port"> | {{ server.ipAddress }}:{{ server.port }}</span>
             <span v-else-if="server.ipAddress"> | {{ server.ipAddress }}</span>
-             | Vytvořeno: {{ formatFullDateTime(server.createdAt) }}
+            | Vytvořeno: {{ formatFullDateTime(server.createdAt) }}
           </v-card-subtitle>
 
           <v-card-text>
@@ -50,7 +58,7 @@
             <p v-if="server.statusDetails" class="text-caption font-roboto-mono status-details-text mt-1" :title="server.statusDetails">
               Detail: {{ filters.truncate(server.statusDetails, 100) }}
             </p>
-             <v-progress-linear
+            <v-progress-linear
                 v-if="isLoadingStatus(server.status)"
                 indeterminate
                 :color="getOverallStatusColor(server.status)"
@@ -59,8 +67,7 @@
             ></v-progress-linear>
           </v-card-text>
 
-          <v-card-actions v-if="canManageServers" class="server-actions">
-            <v-btn
+          <v-card-actions v-if="canManageServers" class="server-actions" @click.stop> <v-btn
               small
               :color="server.status === ServerStatus.Online ? 'warning' : 'success'"
               @click="toggleServerState(server)"
@@ -83,6 +90,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed, reactive } from 'vue';
+import { useRouter } from 'vue-router'; // <-- ADD THIS
 import Swal, {type SweetAlertOptions} from 'sweetalert2';
 import { useAuthStore } from '@/stores/authStore';
 import { UserRoles, GameType, ServerStatus } from '@/types/enums';
@@ -92,8 +100,10 @@ import {
 } from '@mdi/js';
 import { signalRService } from '@/services/signalrService';
 import { getContainerLogs } from '@/services/dockerAdminService';
+import Convert from 'ansi-to-html';
 
-interface GameServerDto {
+// Define GameServerDto locally or import if it's moved to a types file
+export interface GameServerDto { // Renamed from GameServerDtoFE to avoid conflict if imported from elsewhere
   gameServerId: string;
   name: string;
   gameType: GameType;
@@ -104,15 +114,9 @@ interface GameServerDto {
   createdAt: string;
   statusDetails?: string;
 }
-interface CreateGameServerDtoFE {
-  name: string;
-  gameType: GameType;
-  additionalGsParams?: string;
-}
-interface GameServerStatusUpdateDtoFE {
+export interface GameServerStatusUpdateDtoFE { // Renamed from GameServerStatusUpdateDtoFE
     gameServerId: string;
     newOverallStatus: ServerStatus;
-    // newLgsmServerStatus?: string; // Odstraněno
     statusDetails?: string;
     errorMessage?: string;
 }
@@ -128,12 +132,26 @@ const actionLoading = reactive<Record<string, boolean>>({});
 const signalRError = ref<string | null>(null);
 const reconnectingSignalR = ref(false);
 
+const router = useRouter(); // <-- ADD THIS
+
 const filters = {
   truncate(value: string | null | undefined, length: number = 50) {
     if (!value) return '';
     if (value.length <= length) return value;
     return value.substring(0, length) + '...';
   }
+};
+
+const formatFullDateTime = (dateString: string) => {
+  if (!dateString) return 'N/A';
+  const date = new Date(dateString);
+  return date.toLocaleString('cs-CZ', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 };
 
 const canManageServers = computed(() => {
@@ -155,31 +173,36 @@ const getGameTypeText = (gameType: GameType) => ({
 const getOverallStatusColor = (status: ServerStatus) => ({
   [ServerStatus.Online]: 'success', [ServerStatus.Offline]: 'error',
   [ServerStatus.Starting]: 'info', [ServerStatus.Stopping]: 'warning',
-  [ServerStatus.Installing]: 'blue-grey', [ServerStatus.Error]: 'deep-orange-accent-4',
+  // [ServerStatus.Installing]: 'blue-grey', // Removed as per previous context
+  [ServerStatus.Error]: 'deep-orange-accent-4',
   [ServerStatus.PendingCreation]: 'grey-lighten-1', [ServerStatus.Unknown]: 'grey-darken-1',
-  [ServerStatus.Updating]: 'teal', [ServerStatus.Restarting]: 'cyan', [ServerStatus.Deleting]: 'pink-darken-1'
+  // [ServerStatus.Updating]: 'teal', // Removed
+  [ServerStatus.Restarting]: 'cyan',
+  // [ServerStatus.Deleting]: 'pink-darken-1' // Removed
 }[status] || 'grey');
 
 const getServerStatusText = (status: ServerStatus) => ({
   [ServerStatus.Online]: "Online", [ServerStatus.Offline]: "Offline",
   [ServerStatus.Starting]: "Spouští se", [ServerStatus.Stopping]: "Zastavuje se",
-  [ServerStatus.Installing]: "Instaluje se", [ServerStatus.Error]: "Chyba",
+  // [ServerStatus.Installing]: "Instaluje se",
+  [ServerStatus.Error]: "Chyba",
   [ServerStatus.PendingCreation]: "Čeká", [ServerStatus.Unknown]: "Neznámý",
-  [ServerStatus.Updating]: "Aktualizuje se", [ServerStatus.Restarting]: "Restartuje se", [ServerStatus.Deleting]: "Maže se"
+  // [ServerStatus.Updating]: "Aktualizuje se",
+  [ServerStatus.Restarting]: "Restartuje se",
+  // [ServerStatus.Deleting]: "Maže se"
 }[status] || "Neznámý stav");
 
-// Funkce getLgsmStatusColor již není potřeba
-// const getLgsmStatusColor = (lgsmStatus?: string): string => { /* ... */ };
 
 const isLoadingStatus = (status: ServerStatus): boolean => {
     return [
-        ServerStatus.Installing, ServerStatus.Starting, ServerStatus.Stopping,
-        ServerStatus.PendingCreation, ServerStatus.Updating, ServerStatus.Restarting, ServerStatus.Deleting
+        ServerStatus.Starting, ServerStatus.Stopping,
+        ServerStatus.PendingCreation, ServerStatus.Restarting
+        // ServerStatus.Installing, ServerStatus.Updating, ServerStatus.Deleting // Removed
     ].includes(status);
 };
 
 const isActionDisabled = (status: ServerStatus): boolean => {
-    return isLoadingStatus(status) || status === ServerStatus.Unknown;
+    return isLoadingStatus(status) || status === ServerStatus.Unknown || status === ServerStatus.PendingCreation; // Added PendingCreation
 };
 
 const fetchServers = async () => {
@@ -189,7 +212,7 @@ const fetchServers = async () => {
     const response = await fetch(API_BASE_URL, { headers: { 'Authorization': `Bearer ${authStore.token}` } });
     console.log("ServersView: fetchServers - Odpověď z API, status:", response.status, "OK:", response.ok);
     const responseText = await response.text();
-    console.log("ServersView: fetchServers - Raw response text:", responseText);
+    // console.log("ServersView: fetchServers - Raw response text:", responseText); // Potentially too verbose
     if (!response.ok) {
       let errorJsonMessage = null;
       try { if (responseText) { const errorData = JSON.parse(responseText); errorJsonMessage = errorData?.message || errorData?.title; } }
@@ -198,7 +221,11 @@ const fetchServers = async () => {
     }
     const contentType = response.headers.get("content-type");
     if (contentType && contentType.indexOf("application/json") !== -1) {
-        if (responseText && responseText.trim() !== "") { const data = JSON.parse(responseText); console.log("ServersView: fetchServers - Data úspěšně načtena a parsována:", data); servers.value = data; }
+        if (responseText && responseText.trim() !== "") {
+            const data = JSON.parse(responseText);
+            console.log("ServersView: fetchServers - Data úspěšně načtena a parsována.");
+            servers.value = data;
+        }
         else { console.warn("ServersView: fetchServers - Odpověď je JSON, ale tělo je prázdné."); servers.value = []; }
     } else {
         if (response.ok && responseText.trim() === '') { servers.value = []; console.log("ServersView: fetchServers - Přijata prázdná odpověď (200 OK), interpretováno jako žádné servery."); }
@@ -212,18 +239,10 @@ const handleReceiveGameServerUpdate = (updatedServer: GameServerDto) => {
   console.log('SignalR ServersView: ReceiveGameServerUpdate', updatedServer);
   const index = servers.value.findIndex(s => s.gameServerId === updatedServer.gameServerId);
   if (index !== -1) {
-    // Při aktualizaci se ujistíme, že LgsmServerStatus je odstraněn, pokud již není v DTO
-    const { ...restOfUpdatedServer } = updatedServer;
-    servers.value[index] = { ...servers.value[index], ...restOfUpdatedServer };
-    if (Object.prototype.hasOwnProperty.call(updatedServer, 'lgsmServerStatus')) {
-        // Pokud DTO explicitně obsahuje lgsmServerStatus (i když by nemělo být null/undefined)
-        // V našem zjednodušeném případě DTO již LgsmServerStatus neobsahuje, takže se efektivně smaže
-    }
-
+    servers.value[index] = { ...servers.value[index], ...updatedServer };
     console.log("Aktualizován server (plný update)", updatedServer.gameServerId, "Nový stav:", updatedServer.status, "Detail:", updatedServer.statusDetails);
   } else {
-    const { ...restOfNewServer } = updatedServer; // Odstraníme LgsmServerStatus i pro nové servery
-    servers.value.unshift(restOfNewServer as GameServerDto); // Přetypování, protože jsme odstranili lgsmServerStatus
+    servers.value.unshift(updatedServer);
     console.log("Přidán nový server", updatedServer.gameServerId, "Stav:", updatedServer.status, "Detail:", updatedServer.statusDetails);
   }
 };
@@ -233,9 +252,9 @@ const handleReceiveGameServerStatusUpdate = (statusUpdate: GameServerStatusUpdat
   if (server) {
     server.status = statusUpdate.newOverallStatus;
     server.statusDetails = statusUpdate.statusDetails || server.statusDetails;
-    if(statusUpdate.errorMessage) {
-        server.statusDetails = `Chyba: ${statusUpdate.errorMessage}`;
-        server.status = ServerStatus.Error;
+    if(statusUpdate.errorMessage && !server.statusDetails?.includes(statusUpdate.errorMessage)) {
+        server.statusDetails = `${server.statusDetails ? server.statusDetails + '; ' : ''}Chyba: ${statusUpdate.errorMessage}`;
+        server.status = ServerStatus.Error; // Ensure status reflects error
     }
     console.log("Aktualizován stav serveru", server.gameServerId, "Nový stav:", server.status, "Detail:", server.statusDetails);
   }
@@ -275,7 +294,7 @@ onMounted(async () => {
     try {
       await signalRService.startConnection(GAME_SERVER_HUB_PATH);
       setupSignalRListeners();
-    } catch (err: any) { 
+    } catch (err: any) {
         signalRError.value = `Chyba real-time spojení pro servery: ${err.message || 'Neznámá chyba'}`;
         console.error(`SignalR connection error on mount for ${GAME_SERVER_HUB_PATH}:`, err);
     }
@@ -286,7 +305,8 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   console.log("ServersView: Komponenta odpojena (beforeUnmount). Čistím SignalR.");
   removeSignalRListeners();
-  signalRService.stopConnection(GAME_SERVER_HUB_PATH);
+  // Consider if stopConnection should be called here or managed more globally
+  // signalRService.stopConnection(GAME_SERVER_HUB_PATH);
 });
 
 const getFuturisticSwalBaseOptions = (title: string): SweetAlertOptions => ({
@@ -348,7 +368,8 @@ const openCreateServerModal = () => {
                     const errData = await response.json().catch(() => ({message: "Neznámá chyba."}));
                     throw new Error(errData.message || `Chyba ${response.status} při vytváření serveru.`);
                 }
-                Swal.fire({...getFuturisticSwalBaseOptions('Vytváření zahájeno'), text: 'Požadavek na vytvoření serveru byl odeslán. Stav se brzy aktualizuje.', icon: 'info'});
+                // Není potřeba manuálně přidávat do `servers.value`, SignalR by to měl zařídit
+                Swal.fire({...getFuturisticSwalBaseOptions('Vytváření zahájeno'), text: 'Požadavek na vytvoření serveru byl odeslán. Stav se brzy aktualizuje.', icon: 'info', timer: 2500, showConfirmButton: false});
             } catch (err: any) { Swal.fire({...getFuturisticSwalBaseOptions('Chyba!'), text: err.message, icon: 'error'});
             } finally { actionLoading['new_server'] = false; }
         }
@@ -368,7 +389,8 @@ const toggleServerState = async (server: GameServerDto) => {
             const errData = await response.json().catch(() => ({message: "Neznámá chyba."}));
             throw new Error(errData.message || `Chyba při ${action} serveru.`);
         }
-        Swal.fire({...getFuturisticSwalBaseOptions('Příkaz odeslán'), text: `Požadavek na ${action} serveru byl odeslán.`, icon: 'info'});
+        // Není potřeba manuálně měnit stav zde, protože SignalR by měl aktualizovat `servers.value`
+        Swal.fire({...getFuturisticSwalBaseOptions('Příkaz odeslán'), text: `Požadavek na ${action} serveru byl odeslán. Stav se brzy aktualizuje.`, icon: 'info', timer: 2000, showConfirmButton: false});
     } catch (err: any) { Swal.fire({...getFuturisticSwalBaseOptions('Chyba!'), text: err.message, icon: 'error'});
     } finally { actionLoading[actionKey] = false; }
 };
@@ -396,7 +418,8 @@ const confirmDeleteServer = (server: GameServerDto) => {
         }
     }).then((result) => {
         if (result.isConfirmed && result.value) {
-            Swal.fire({...getFuturisticSwalBaseOptions('Smazáno!'), text: `Server ${server.name} byl úspěšně smazán.`, icon: 'success'});
+            // Není potřeba manuálně odstraňovat z `servers.value`, SignalR by to měl zařídit
+            Swal.fire({...getFuturisticSwalBaseOptions('Smazáno!'), text: `Server ${server.name} byl úspěšně smazán.`, icon: 'success', timer: 2000, showConfirmButton: false});
         }
     });
 };
@@ -406,10 +429,13 @@ const viewServerLogs = async (server: GameServerDto) => {
     const actionKey = server.gameServerId + '_logs';
     actionLoading[actionKey] = true;
     try {
-        const logs = await getContainerLogs(server.containerId, 500);
+        const logs = await getContainerLogs(server.containerId, 500); // Assuming this is from dockerAdminService
+        const convert = new Convert({ fg: '#FFF', bg: '#000', newline: true, escapeXML: true });
+        const formattedLogs = convert.toHtml(logs);
+
         Swal.fire({
             ...getFuturisticSwalBaseOptions(`Logy serveru: ${server.name}`),
-            html: `<pre class="server-logs-pre">${logs.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`,
+            html: `<pre style="text-align:left;"class="server-logs-pre">${formattedLogs}</pre>`,
             width: '90vw',
             customClass: { popup: 'futuristic-swal-popup logs-swal', htmlContainer: 'futuristic-swal-html-container font-inter' },
             confirmButtonText: 'Zavřít'
@@ -418,9 +444,13 @@ const viewServerLogs = async (server: GameServerDto) => {
     } finally { actionLoading[actionKey] = false; }
 };
 
-const formatFullDateTime = (isoDateTime: string): string => {
-    if (!isoDateTime) return 'N/A';
-    return new Date(isoDateTime).toLocaleString('cs-CZ', { dateStyle: 'medium', timeStyle: 'short' });
+// <-- ADD THIS METHOD -->
+const navigateToDetail = (server: GameServerDto) => {
+  if (server.status !== ServerStatus.PendingCreation && server.status !== ServerStatus.Deleting && server.containerId) { // Only allow click if container exists and not in transient state
+    router.push({ name: 'server-detail', params: { id: server.gameServerId } });
+  } else if (!server.containerId) {
+    Swal.fire({...getFuturisticSwalBaseOptions('Informace'), text: 'Detail serveru není dostupný, dokud není vytvořen jeho kontejner.', icon: 'info'});
+  }
 };
 
 </script>
@@ -433,23 +463,28 @@ const formatFullDateTime = (isoDateTime: string): string => {
   border-left-width: 5px;
   border-left-style: solid;
   border-left-color: transparent;
+  cursor: pointer; /* Add cursor pointer for clickable cards */
+}
+.server-card[disabled] { /* Style for disabled cards */
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 .server-card.status-border-online { border-left-color: var(--v-theme-success) !important; }
 .server-card.status-border-offline { border-left-color: var(--v-theme-error) !important; }
 .server-card.status-border-starting,
-.server-card.status-border-installing,
-.server-card.status-border-updating,
+/* .server-card.status-border-installing, */ /* Removed */
+/* .server-card.status-border-updating, */ /* Removed */
 .server-card.status-border-restarting { border-left-color: var(--v-theme-info) !important; }
 .server-card.status-border-stopping { border-left-color: var(--v-theme-warning) !important; }
-.server-card.status-border-error { border-left-color: var(--v-theme-deep-orange-accent-4) !important; }
+.server-card.status-border-error { border-left-color: var(--v-theme-deep-orange-accent-4) !important; } /* Assuming deep-orange-accent-4 is defined */
 .server-card.status-border-pendingcreation,
 .server-card.status-border-unknown { border-left-color: var(--v-theme-grey-darken-1) !important; }
 
-.server-card:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(var(--v-theme-primary-rgb), 0.2); }
+.server-card:not([disabled]):hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(var(--v-theme-primary-rgb), 0.2); }
 .status-chip { font-size: 0.75rem !important; font-weight: 500; }
 .server-name { font-size: 1.1rem !important; font-weight: 500; }
 .status-details-text {
-    white-space: pre-wrap; 
+    white-space: pre-wrap;
     max-height: 60px;
     overflow-y: auto;
     background-color: rgba(var(--v-theme-on-surface-rgb), 0.05);
@@ -472,5 +507,12 @@ const formatFullDateTime = (isoDateTime: string): string => {
     padding: 15px; border-radius: 6px; font-size: 0.8rem;
     white-space: pre-wrap; word-break: break-all;
     border: 1px solid rgba(var(--v-theme-primary-rgb), 0.3);
+    font-family: 'Roboto Mono', monospace;
+}
+
+/* Styly pro formátované ANSI logy */
+:deep(.server-logs-pre span) {
+    display: inline;
+    line-height: 1.4;
 }
 </style>

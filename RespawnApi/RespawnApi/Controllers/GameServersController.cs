@@ -1,7 +1,8 @@
-﻿// Controllers/GameServersController.cs
+﻿// File: haha/RespawnApi/RespawnApi/Controllers/GameServersController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging;
 using RespawnApi.Application.DTOs.GameServer;
 using RespawnApi.Application.Interfaces;
 using RespawnApi.Domain.Entities;
@@ -13,13 +14,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+
 
 namespace RespawnApi.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = $"{UserRoles.Administrator},{UserRoles.Spravce}")]
+    // Class-level authorization removed, will be applied per-method
     public class GameServersController : ControllerBase
     {
         private readonly IDockerService _dockerService;
@@ -27,19 +28,49 @@ namespace RespawnApi.Controllers
         private readonly ILogger<GameServersController> _logger;
         private readonly IGameServerRepository _gameServerRepository;
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly IGameServerQueryService _gameServerQueryService;
 
         public GameServersController(
             IDockerService dockerService,
             IHubContext<GameServerHub> gameServerHubContext,
             ILogger<GameServersController> logger,
             IGameServerRepository gameServerRepository,
-            IServiceScopeFactory scopeFactory)
+            IServiceScopeFactory scopeFactory,
+            IGameServerQueryService gameServerQueryService)
         {
             _dockerService = dockerService;
             _gameServerHubContext = gameServerHubContext;
             _logger = logger;
             _gameServerRepository = gameServerRepository;
             _scopeFactory = scopeFactory;
+            _gameServerQueryService = gameServerQueryService;
+        }
+
+        private GameServerDto MapToDto(GameServer s)
+        {
+            if (s == null)
+            {
+                _logger.LogWarning("MapToDto received a null GameServer object.");
+                return new GameServerDto
+                {
+                    GameServerId = Guid.Empty,
+                    Name = "[CHYBA: Server data jsou null]",
+                    Status = ServerStatus.Unknown,
+                    CreatedAt = DateTime.MinValue
+                };
+            }
+            return new GameServerDto
+            {
+                GameServerId = s.GameServerId,
+                Name = s.Name,
+                GameType = s.GameType,
+                Status = s.Status,
+                IpAddress = s.IpAddress,
+                Port = s.Port,
+                ContainerId = s.ContainerId,
+                CreatedAt = s.CreatedAt,
+                StatusDetails = s.StatusDetails
+            };
         }
 
         private string GetGameImageTag(GameType gameType) => gameType switch
@@ -57,30 +88,9 @@ namespace RespawnApi.Controllers
             _ => $"unknownserver-{Guid.NewGuid().ToString().Substring(0, 4)}"
         };
 
-        private GameServerDto MapToDto(GameServer s)
-        {
-            if (s == null)
-            {
-                _logger.LogWarning("MapToDto dostalo null GameServer objekt.");
-                return new GameServerDto { GameServerId = Guid.Empty, Name = "[CHYBA: Server data jsou null]", Status = ServerStatus.Unknown, CreatedAt = DateTime.MinValue };
-            }
-            return new GameServerDto
-            {
-                GameServerId = s.GameServerId,
-                Name = s.Name,
-                GameType = s.GameType,
-                Status = s.Status,
-                // LgsmServerStatus byl odstraněn z entity GameServer a DTO
-                IpAddress = s.IpAddress,
-                Port = s.Port,
-                ContainerId = s.ContainerId,
-                CreatedAt = s.CreatedAt,
-                StatusDetails = s.StatusDetails
-            };
-        }
-
         // GET: api/gameservers
         [HttpGet]
+        [Authorize] // Accessible to all authenticated users
         public async Task<ActionResult<IEnumerable<GameServerDto>>> GetGameServers()
         {
             _logger.LogInformation("Endpoint GetGameServers byl zavolán.");
@@ -108,6 +118,7 @@ namespace RespawnApi.Controllers
 
         // POST: api/gameservers
         [HttpPost]
+        [Authorize(Roles = $"{UserRoles.Administrator},{UserRoles.Spravce}")] // Restricted
         public async Task<ActionResult<GameServerDto>> CreateGameServer(CreateGameServerDto createDto)
         {
             _logger.LogInformation("Požadavek na vytvoření herního serveru: {ServerName}, Typ: {GameType}", createDto.Name, createDto.GameType);
@@ -121,10 +132,16 @@ namespace RespawnApi.Controllers
                 StatusDetails = "Čeká na vytvoření kontejneru..."
             };
 
+            if (createDto.GameType == GameType.CounterStrike)
+            {
+                gameServer.Port = 27015;
+                _logger.LogInformation("Nastavuji výchozí port 27015 pro Counter-Strike server {ServerName}.", createDto.Name);
+            }
+
             try
             {
                 await _gameServerRepository.AddAsync(gameServer);
-                _logger.LogInformation("Herní server {GameServerId} uložen do DB se stavem PendingCreation.", gameServer.GameServerId);
+                _logger.LogInformation("Herní server {GameServerId} uložen do DB se stavem PendingCreation. Port: {Port}", gameServer.GameServerId, gameServer.Port);
             }
             catch (Exception ex)
             {
@@ -169,12 +186,11 @@ namespace RespawnApi.Controllers
 
                         if (containerId != null)
                         {
-                            serverToUpdate.ContainerId = containerId; serverToUpdate.IpAddress = "localhost";
-                            // Po úspěšném vytvoření a spuštění kontejneru je server ve stavu "Starting" nebo "Installing"
-                            // Monitorovací služba pak ověří skutečný stav (Online)
+                            serverToUpdate.ContainerId = containerId;
+                            serverToUpdate.IpAddress = "localhost";
                             serverToUpdate.Status = ServerStatus.Starting;
                             serverToUpdate.StatusDetails = "Kontejner vytvořen, server se spouští/instaluje.";
-                            scopedLogger.LogInformation("Docker kontejner {ContainerId} pro server {GameServerId} vytvořen. Stav: {Status}", containerId, serverToUpdate.GameServerId, serverToUpdate.Status);
+                            scopedLogger.LogInformation("Docker kontejner {ContainerId} pro server {GameServerId} vytvořen. Stav: {Status}, IP: {IP}, Port: {Port}", containerId, serverToUpdate.GameServerId, serverToUpdate.Status, serverToUpdate.IpAddress, serverToUpdate.Port);
                         }
                         else
                         {
@@ -215,6 +231,7 @@ namespace RespawnApi.Controllers
         }
 
         [HttpGet("{id}")]
+        [Authorize] // Accessible to all authenticated users
         public async Task<ActionResult<GameServerDto>> GetGameServer(Guid id)
         {
             _logger.LogInformation("Požadavek na GetGameServer pro ID: {ServerId}", id);
@@ -228,7 +245,91 @@ namespace RespawnApi.Controllers
             return Ok(MapToDto(server));
         }
 
+        // GET: api/gameservers/{id}/details
+        [HttpGet("{id}/details")]
+        [Authorize] // Accessible to all authenticated users
+        [ProducesResponseType(typeof(GameServerDetailDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<ActionResult<GameServerDetailDto>> GetGameServerDetails(Guid id)
+        {
+            _logger.LogInformation("Požadavek na GetGameServerDetails pro ID: {ServerId}", id);
+            var server = await _gameServerRepository.GetByIdAsync(id);
+            if (server == null)
+            {
+                _logger.LogWarning("Server s ID {ServerId} nenalezen pro detaily.", id);
+                return NotFound(new { message = $"Server s ID {id} nebyl nalezen." });
+            }
+
+            var basicDto = MapToDto(server);
+
+            if (server.Status == ServerStatus.Online && !string.IsNullOrEmpty(server.IpAddress) && server.Port.HasValue)
+            {
+                int queryPort = server.Port.Value;
+                GameServerDetailDto? detailedInfo = null;
+                string a2sErrorMsg = "Neznámá chyba při A2S dotazu.";
+
+                try
+                {
+                    detailedInfo = await _gameServerQueryService.GetServerDetailsA2SAsync(server.IpAddress, queryPort, basicDto);
+                    if (detailedInfo != null)
+                    {
+                        _logger.LogInformation("Úspěšně získány A2S detaily pro server {ServerId}.", id);
+                        return Ok(detailedInfo);
+                    }
+                    else
+                    {
+                        a2sErrorMsg = "A2S dotaz selhal nebo server neodpověděl (QueryMaster vrátil null).";
+                        _logger.LogWarning("Nepodařilo se získat A2S detaily pro server {ServerId} (QueryMaster vrátil null). Server zůstává označen jako Online, ale detaily chybí.", id);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    a2sErrorMsg = $"Výjimka při A2S dotazu: {ex.Message}";
+                    _logger.LogError(ex, "Výjimka při A2S dotazu na server {ServerId}.", id);
+                }
+
+                return Ok(new GameServerDetailDto
+                {
+                    GameServerId = basicDto.GameServerId,
+                    Name = basicDto.Name,
+                    GameType = basicDto.GameType,
+                    Status = basicDto.Status,
+                    IpAddress = basicDto.IpAddress,
+                    Port = basicDto.Port,
+                    ContainerId = basicDto.ContainerId,
+                    CreatedAt = basicDto.CreatedAt,
+                    StatusDetails = $"Server je online, ale A2S dotaz selhal: {a2sErrorMsg}",
+                    GameName = basicDto.Name,
+                    MapName = "N/A (A2S selhalo)",
+                    CurrentPlayers = 0,
+                    MaxPlayers = 0,
+                    IsVacSecured = false,
+                    Players = new List<PlayerDetailDto>()
+                });
+            }
+            else
+            {
+                _logger.LogInformation("Server {ServerId} není online nebo nemá IP/Port pro A2S dotaz. Vracím základní informace.", id);
+                return Ok(new GameServerDetailDto
+                {
+                    GameServerId = basicDto.GameServerId,
+                    Name = basicDto.Name,
+                    GameType = basicDto.GameType,
+                    Status = basicDto.Status,
+                    IpAddress = basicDto.IpAddress,
+                    Port = basicDto.Port,
+                    ContainerId = basicDto.ContainerId,
+                    CreatedAt = basicDto.CreatedAt,
+                    StatusDetails = basicDto.StatusDetails ?? "Server není online nebo chybí IP/Port pro detailní dotaz.",
+                    Players = new List<PlayerDetailDto>()
+                });
+            }
+        }
+
+
         [HttpGet("{id}/logs")]
+        [Authorize(Roles = $"{UserRoles.Administrator},{UserRoles.Spravce}")] // Restricted
         public async Task<ActionResult<string>> GetGameServerLogs(Guid id, [FromQuery] uint tail = 200)
         {
             _logger.LogInformation("Požadavek na logy pro server {ServerId}, tail {Tail}", id, tail);
@@ -250,20 +351,20 @@ namespace RespawnApi.Controllers
         }
 
         [HttpPost("{id}/start")]
+        [Authorize(Roles = $"{UserRoles.Administrator},{UserRoles.Spravce}")] // Restricted
         public async Task<IActionResult> StartGameServer(Guid id)
         {
             _logger.LogInformation("Požadavek na spuštění serveru {ServerId}", id);
             var server = await _gameServerRepository.GetByIdAsync(id);
             if (server == null || string.IsNullOrEmpty(server.ContainerId)) return NotFound(new { message = "Server nebo jeho kontejner nenalezen." });
 
-            // Povolíme start, i když je Installing, protože monitor to pak ověří
             if (server.Status == ServerStatus.Online || server.Status == ServerStatus.Starting)
                 return BadRequest(new { message = "Server již běží nebo se spouští." });
 
             var success = await _dockerService.StartContainerAsync(server.ContainerId);
             if (success)
             {
-                server.Status = ServerStatus.Starting; // Monitor potvrdí skutečný stav (Online nebo Error)
+                server.Status = ServerStatus.Starting;
                 server.StatusDetails = "Příkaz ke spuštění kontejneru odeslán.";
                 await _gameServerRepository.UpdateAsync(server);
                 await _gameServerHubContext.Clients.All.SendAsync("ReceiveGameServerUpdate", MapToDto(server));
@@ -279,6 +380,7 @@ namespace RespawnApi.Controllers
         }
 
         [HttpPost("{id}/stop")]
+        [Authorize(Roles = $"{UserRoles.Administrator},{UserRoles.Spravce}")] // Restricted
         public async Task<IActionResult> StopGameServer(Guid id)
         {
             _logger.LogInformation("Požadavek na zastavení serveru {ServerId}", id);
@@ -303,7 +405,6 @@ namespace RespawnApi.Controllers
                     GameServer? finalServerState = null;
                     try
                     {
-                        // Použijeme obecnou metodu StopContainerAsync, která přijímá pouze containerId
                         bool success = await scopedDockerService.StopContainerAsync(server.ContainerId);
 
                         finalServerState = await scopedRepo.GetByIdAsync(id);
@@ -333,6 +434,7 @@ namespace RespawnApi.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = $"{UserRoles.Administrator},{UserRoles.Spravce}")] // Restricted
         public async Task<IActionResult> DeleteGameServer(Guid id)
         {
             _logger.LogInformation("Požadavek na smazání serveru {ServerId}", id);
@@ -342,9 +444,9 @@ namespace RespawnApi.Controllers
             {
                 if (server.Status != ServerStatus.Offline && server.Status != ServerStatus.Error)
                 {
-                    await _dockerService.StopContainerAsync(server.ContainerId); // Obecný stop
+                    await _dockerService.StopContainerAsync(server.ContainerId);
                 }
-                await _dockerService.RemoveContainerAsync(server.ContainerId, true); // true pro smazání asociovaného volume
+                await _dockerService.RemoveContainerAsync(server.ContainerId, true);
             }
             await _gameServerRepository.DeleteAsync(id);
             await _gameServerHubContext.Clients.All.SendAsync("ReceiveGameServerRemoval", id);

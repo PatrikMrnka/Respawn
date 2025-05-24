@@ -99,8 +99,9 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddSingleton<IUserPresenceService, UserPresenceService>();
-builder.Services.AddScoped<IGameServerRepository, GameServerRepository>(); // <-- Přidáno
-builder.Services.AddSingleton<IDockerService, DockerService>(); // <-- Přidáno (Singleton, protože DockerClient je thread-safe a drahý na vytvoření)
+builder.Services.AddScoped<IGameServerRepository, GameServerRepository>();
+builder.Services.AddSingleton<IDockerService, DockerService>();
+builder.Services.AddScoped<IGameServerQueryService, GameServerQueryService>(); // <-- ADD THIS LINE
 builder.Services.AddHostedService<GameServerStatusMonitorService>();
 
 builder.Services.AddControllers();

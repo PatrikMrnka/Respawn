@@ -1,6 +1,6 @@
-// src/router/index.ts
+// File: haha/respawn-app/src/router/index.ts
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
+import HomeView from '../views/HomeView.vue' // Assuming .vue, but user provided .txt
 import UserProfileView from '../views/UserProfileView.vue'
 import ServersView from '../views/ServersView.vue'
 import StatisticsView from '@/views/StatisticsView.vue'
@@ -8,6 +8,7 @@ import AboutView from '@/views/AboutView.vue'
 import AdminView from '@/views/AdminView.vue'
 import UsersView from '@/views/UsersView.vue'
 import PollsView from '@/views/PollsView.vue'
+import GameServerDetailView from '@/views/GameServerDetailView.vue'
 import { useAuthStore } from '@/stores/authStore'
 import { displayLoginModal } from '@/services/authService'
 import { UserRoles } from '@/types/enums'
@@ -29,7 +30,14 @@ const routes: Array<RouteRecordRaw> = [
     path : '/servers',
     name : 'servers',
     component : ServersView,
-    meta : { requiresAuth: true },
+    meta : { requiresAuth: true }, // Assuming only logged-in users can see server list
+  },
+  { // <-- ADD THIS ROUTE
+    path: '/servers/:id',
+    name: 'server-detail',
+    component: GameServerDetailView,
+    props: true, // Pass route params as props to the component
+    meta: { requiresAuth: true }, // Assuming only logged-in users can see details
   },
   {
     path: '/statistics',
@@ -49,7 +57,7 @@ const routes: Array<RouteRecordRaw> = [
     component: AdminView,
     meta: {
       requiresAuth: true,
-      roles: [UserRoles.Administrator]
+      roles: [UserRoles.Administrator, UserRoles.Spravce] // Adjusted to include Spravce if they can access parts of admin
     },
   },
   {
@@ -58,7 +66,7 @@ const routes: Array<RouteRecordRaw> = [
     component: UsersView,
     meta: {
       requiresAuth: true,
-      roles: [UserRoles.Spravce]
+      roles: [UserRoles.Administrator, UserRoles.Spravce] // Assuming Spravce can manage users
     },
   },
   {
@@ -66,7 +74,7 @@ const routes: Array<RouteRecordRaw> = [
     name: 'polls',
     component: PollsView,
     meta: {
-      requiresAuth: true // Ankety jsou pro přihlášené uživatele
+      requiresAuth: true
     },
   }
 ]
@@ -76,9 +84,10 @@ const router = createRouter({
   routes,
 })
 
-// Navigation Guard
+// Navigation Guard (remains the same, but ensure it handles roles correctly for new admin routes if needed)
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
+  // Initialize authStore from localStorage if not already done
   if (!authStore.token && localStorage.getItem('authToken')) {
     authStore.token = localStorage.getItem('authToken')
     authStore.user = JSON.parse(localStorage.getItem('authUser') || 'null')
@@ -95,22 +104,25 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth && !userIsLoggedIn) {
     displayLoginModal().then((result) => {
       if (result && result.success) {
-        const updatedUserRoles = authStore.user?.roles || [];
+        const updatedUserRoles = authStore.user?.roles || []; // Re-check roles after login
         if (to.meta.roles && Array.isArray(to.meta.roles) && !(to.meta.roles as string[]).some(role => updatedUserRoles.includes(role))) {
-          next({ name: 'home' });
+          next({ name: 'home' }); // Redirect if role still not sufficient
         } else {
-          next();
+          next(); // Proceed to the originally intended route
         }
       } else {
-        next({ name: 'home' });
+        next({ name: 'home' }); // Stay on home or redirect to a public page if login fails/cancelled
       }
+    }).catch(() => {
+      next({ name: 'home' }); // Handle modal promise rejection
     });
   } else if (to.meta.requiresAuth && to.meta.roles && Array.isArray(to.meta.roles) && !(to.meta.roles as string[]).some(role => userRoles.includes(role))) {
+    // User is logged in but does not have the required role
     console.warn(`Uživatel nemá oprávnění pro ${to.path}. Požadované role: ${(to.meta.roles as string[]).join(', ')}. Role uživatele: ${userRoles.join(', ')}`);
-    next({ name: 'home' });
+    next({ name: 'home' }); // Redirect to home or an "access denied" page
   }
   else {
-    next();
+    next(); // Proceed if no auth required, or auth satisfied
   }
 })
 
