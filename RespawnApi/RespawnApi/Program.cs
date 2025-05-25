@@ -15,14 +15,15 @@ using RespawnApi.Hubs;
 var builder = WebApplication.CreateBuilder(args);
 
 // CORS configuration
+var frontendUrl = builder.Configuration["EnvironmentURL:Frontend"] ?? "http://localhost:5173";
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowRespawnApp", policyBuilder =>
     {
-        policyBuilder.WithOrigins("http://localhost:5173") // Frontend URL
+        policyBuilder.WithOrigins(frontendUrl)
             .AllowAnyHeader()
             .AllowAnyMethod()
-            .AllowCredentials(); // Required for SignalR with credentials
+            .AllowCredentials();
     });
 });
 

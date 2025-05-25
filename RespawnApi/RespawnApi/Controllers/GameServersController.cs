@@ -23,6 +23,7 @@ namespace RespawnApi.Controllers
         private readonly IGameServerRepository _gameServerRepository;
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly IGameServerQueryService _gameServerQueryService;
+        private readonly IConfiguration _configuration;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GameServersController"/> class.
@@ -33,7 +34,8 @@ namespace RespawnApi.Controllers
             ILogger<GameServersController> logger,
             IGameServerRepository gameServerRepository,
             IServiceScopeFactory scopeFactory,
-            IGameServerQueryService gameServerQueryService)
+            IGameServerQueryService gameServerQueryService,
+            IConfiguration configuration)
         {
             _containerManagementService = containerManagementService;
             _gameServerHubContext = gameServerHubContext;
@@ -41,6 +43,7 @@ namespace RespawnApi.Controllers
             _gameServerRepository = gameServerRepository;
             _scopeFactory = scopeFactory;
             _gameServerQueryService = gameServerQueryService;
+            _configuration = configuration;
         }
 
         /// <summary>
@@ -232,7 +235,7 @@ namespace RespawnApi.Controllers
                     if (containerId != null)
                     {
                         serverToUpdate.ContainerId = containerId;
-                        serverToUpdate.IpAddress = "172.20.10.5"; // Default IP for local Docker with host networking - now hardcoded!!!
+                        serverToUpdate.IpAddress = _configuration["EnvironmentURL:Docker"]; // Default IP for local Docker with host networking - now hardcoded!!!
                         serverToUpdate.Status = ServerStatus.Starting; // Server is starting up within the container
                         serverToUpdate.StatusDetails = "Kontejner vytvořen, server se spouští/instaluje.";
                         scopedLogger.LogInformation("[BG Task - {GameServerId}] Docker kontejner {ContainerId} vytvořen. Stav: {Status}, IP: {IP}, Port: {Port}",
@@ -516,5 +519,6 @@ namespace RespawnApi.Controllers
             _logger.LogInformation("Server {ServerId} smazán z databáze.", id);
             return NoContent();
         }
+
     }
 }
