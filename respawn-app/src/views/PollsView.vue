@@ -159,7 +159,7 @@
 import { ref, onMounted, onBeforeUnmount, computed, reactive } from 'vue';
 import Swal, {type SweetAlertOptions} from 'sweetalert2';
 import { useAuthStore } from '@/stores/authStore';
-import { UserRoles } from '@/types/enums'; // GameType a ServerStatus zde nejsou potřeba
+import { UserRoles } from '@/types/enums';
 import {
   getAllPolls, createPoll, updatePoll, deletePoll, submitVote,
   type Poll, type PollOption, type CreatePollDto, type UpdatePollDto, type UpdatePollOptionPayload
@@ -171,6 +171,7 @@ import {
     mdiCheckCircle, mdiTrashCanOutline
 } from '@mdi/js';
 
+// Path for SignalR poll hub
 const POLL_HUB_PATH = "/pollHub";
 
 const authStore = useAuthStore();
@@ -180,12 +181,14 @@ const apiError = ref<string | null>(null);
 const signalRError = ref<string | null>(null);
 const reconnectingSignalR = ref(false);
 
+// Store for selected options and voting states
 const selectedOptions = reactive<Record<string, string | string[]>>({});
 const votingStates = reactive<Record<string, boolean>>({});
 
 const currentTime = ref(new Date());
 let timeInterval: number | undefined;
 
+// Updates current time and checks if any polls have ended
 const updateCurrentTimeAndPollsStatus = () => {
   currentTime.value = new Date();
   polls.value.forEach((poll) => {
@@ -195,6 +198,7 @@ const updateCurrentTimeAndPollsStatus = () => {
   });
 };
 
+// Handler for receiving poll updates from SignalR
 const handleReceivePollUpdate = (updatedPollFromSignalR: Poll) => {
   console.log('SignalR PollsView: ReceivePollUpdate', updatedPollFromSignalR);
   const index = polls.value.findIndex(p => p.pollId === updatedPollFromSignalR.pollId);
@@ -205,13 +209,12 @@ const handleReceivePollUpdate = (updatedPollFromSignalR: Poll) => {
         ? updatedPollFromSignalR.userVotedOptionIds
         : existingPoll.userVotedOptionIds;
     
-    // Explicitní konverze na boolean pro isClosed
     const isNowClosedBySignalR = !!(updatedPollFromSignalR.isClosed || (updatedPollFromSignalR.endTime && new Date(updatedPollFromSignalR.endTime) <= new Date()));
 
     polls.value[index] = { 
         ...existingPoll, 
         ...updatedPollFromSignalR, 
-        isClosed: isNowClosedBySignalR, // Opraveno zde
+        isClosed: isNowClosedBySignalR,
         userVotedOptionIds: mergedUserVotedOptionIds, 
     };
 
@@ -227,6 +230,7 @@ const handleReceivePollUpdate = (updatedPollFromSignalR: Poll) => {
   }
 };
 
+// Handler for receiving poll deletion notifications from SignalR
 const handleReceivePollDelete = (pollId: string) => {
   console.log('SignalR PollsView: ReceivePollDelete', pollId);
   polls.value = polls.value.filter(p => p.pollId !== pollId);
@@ -234,47 +238,51 @@ const handleReceivePollDelete = (pollId: string) => {
   delete votingStates[pollId];
 };
 
+// Handler for receiving vote updates from SignalR
 const handleReceiveVoteUpdate = (updatedPoll: Poll) => {
   console.log('SignalR PollsView: ReceiveVoteUpdate', updatedPoll);
   handleReceivePollUpdate(updatedPoll);
 };
 
+// Setup SignalR event listeners
 const setupSignalRListeners = () => {
-    console.log(`PollsView: Registruji SignalR listenery pro ${POLL_HUB_PATH}`);
+    console.log(`PollsView: Registering SignalR listeners for ${POLL_HUB_PATH}`);
     signalRService.on(POLL_HUB_PATH, "ReceivePollUpdate", handleReceivePollUpdate);
     signalRService.on(POLL_HUB_PATH, "ReceivePollDelete", handleReceivePollDelete);
     signalRService.on(POLL_HUB_PATH, "ReceiveVoteUpdate", handleReceiveVoteUpdate);
 };
+
+// Remove SignalR event listeners
 const removeSignalRListeners = () => {
-    console.log(`PollsView: Odregistrovávám SignalR listenery pro ${POLL_HUB_PATH}`);
+    console.log(`PollsView: Unregistering SignalR listeners for ${POLL_HUB_PATH}`);
     signalRService.off(POLL_HUB_PATH, "ReceivePollUpdate", handleReceivePollUpdate);
     signalRService.off(POLL_HUB_PATH, "ReceivePollDelete", handleReceivePollDelete);
     signalRService.off(POLL_HUB_PATH, "ReceiveVoteUpdate", handleReceiveVoteUpdate);
 };
 
+// Attempt to reconnect to the SignalR hub
 const attemptPollsReconnect = async () => {
-    console.log(`PollsView: Pokus o znovupřipojení k ${POLL_HUB_PATH}`);
+    console.log(`PollsView: Attempting to reconnect to ${POLL_HUB_PATH}`);
     if (signalRService.getConnectionState(POLL_HUB_PATH) === 'Disconnected' || signalRService.getConnectionState(POLL_HUB_PATH) === null) {
         reconnectingSignalR.value = true; signalRError.value = null;
         try { 
             await signalRService.startConnection(POLL_HUB_PATH);
-            // Listenery by se měly znovu navázat, pokud to startConnection v signalRService řeší
-            // (v naší implementaci ano, přes eventCallbacks)
         }
         catch (err: any) { 
-            signalRError.value = err.message || "Nepodařilo se znovu připojit k real-time službě pro ankety.";
+            signalRError.value = err.message || "Failed to reconnect to real-time polling service.";
             console.error(`SignalR reconnect error for ${POLL_HUB_PATH}:`, err);
         }
         finally { reconnectingSignalR.value = false; }
     }
 };
 
+// Fetch all polls from the API
 const fetchPolls = async () => {
   loading.value = true; apiError.value = null;
-  console.log("PollsView: fetchPolls - Zahájení načítání anket...");
+  console.log("PollsView: fetchPolls - Starting poll data fetch...");
   try {
     const data = await getAllPolls();
-    console.log("PollsView: fetchPolls - Data úspěšně načtena:", data);
+    console.log("PollsView: fetchPolls - Data successfully loaded:", data);
     polls.value = data.map(poll => ({
         ...poll,
         isClosed: poll.isClosed || new Date(poll.endTime) <= new Date(),
@@ -289,45 +297,46 @@ const fetchPolls = async () => {
     });
     updateCurrentTimeAndPollsStatus();
   } catch (err: any) {
-    console.error("PollsView: fetchPolls - Výjimka při fetch:", err);
-    apiError.value = err.message || "Došlo k neočekávané chybě při načítání anket.";
+    console.error("PollsView: fetchPolls - Exception during fetch:", err);
+    apiError.value = err.message || "An unexpected error occurred while loading polls.";
   } finally {
     loading.value = false;
-    console.log("PollsView: fetchPolls - Načítání dokončeno.");
+    console.log("PollsView: fetchPolls - Loading completed.");
   }
 };
 
+// Lifecycle hooks
 onMounted(async () => {
-  console.log("PollsView: Komponenta připojena (mounted).");
+  console.log("PollsView: Component mounted.");
   await fetchPolls();
   timeInterval = window.setInterval(updateCurrentTimeAndPollsStatus, 1000);
   if (authStore.isLoggedIn) {
-    console.log(`PollsView: Uživatel přihlášen, pokus o start SignalR pro ${POLL_HUB_PATH}`);
+    console.log(`PollsView: User logged in, attempting to start SignalR for ${POLL_HUB_PATH}`);
     try {
       await signalRService.startConnection(POLL_HUB_PATH);
       setupSignalRListeners();
     } catch (err: any) {
-      signalRError.value = err.message || "Nepodařilo se připojit k real-time službě pro ankety.";
+      signalRError.value = err.message || "Failed to connect to real-time polling service.";
       console.error(`SignalR connection error on mount for ${POLL_HUB_PATH}:`, err);
     }
   } else {
-    console.log("PollsView: Uživatel není přihlášen, SignalR se nespouští.");
+    console.log("PollsView: User not logged in, SignalR not started.");
   }
 });
 
 onBeforeUnmount(() => {
-  console.log("PollsView: Komponenta odpojena (beforeUnmount). Čistím interval a SignalR.");
+  console.log("PollsView: Component unmounting. Cleaning up interval and SignalR.");
   if (timeInterval) clearInterval(timeInterval);
   removeSignalRListeners();
   signalRService.stopConnection(POLL_HUB_PATH);
 });
 
+// Check if a poll is effectively closed (either marked as closed or past end time)
 const isPollEffectivelyClosed = (poll: Poll): boolean => {
-    // Používáme přímo poll.isClosed, které je aktualizováno v updateCurrentTimeAndPollsStatus
-    // nebo přes SignalR. currentTime.value je pro formatRelativeTime.
     return poll.isClosed || new Date(poll.endTime) <= currentTime.value;
 };
 
+// Sort polls by status (open first) then by end date (newest first)
 const sortedPolls = computed(() => {
   return [...polls.value].sort((a, b) => {
     const aIsEffectivelyClosed = isPollEffectivelyClosed(a);
@@ -338,6 +347,7 @@ const sortedPolls = computed(() => {
   });
 });
 
+// Format date in relative time
 const formatRelativeTime = (isoDateTime: string, now: Date): string => {
     const date = new Date(isoDateTime);
     const diffSeconds = Math.round((date.getTime() - now.getTime()) / 1000);
@@ -346,29 +356,32 @@ const formatRelativeTime = (isoDateTime: string, now: Date): string => {
         const diffMinutesAbs = Math.abs(Math.round(diffSeconds / 60));
         const diffHoursAbs = Math.abs(Math.round(diffMinutesAbs / 60));
         const diffDaysAbs = Math.abs(Math.round(diffHoursAbs / 24));
-        if (diffDaysAbs > 1) return `skončila před ${diffDaysAbs} dny`;
-        if (diffDaysAbs === 1) return `skončila včera`;
-        if (diffHoursAbs > 1) return `skončila před ${diffHoursAbs} hodinami`;
-        if (diffHoursAbs === 1) return `skončila před hodinou`;
-        if (diffMinutesAbs > 1) return `skončila před ${diffMinutesAbs} minutami`;
-        return "skončila před chvílí";
+        if (diffDaysAbs > 1) return `ended ${diffDaysAbs} days ago`;
+        if (diffDaysAbs === 1) return `ended yesterday`;
+        if (diffHoursAbs > 1) return `ended ${diffHoursAbs} hours ago`;
+        if (diffHoursAbs === 1) return `ended 1 hour ago`;
+        if (diffMinutesAbs > 1) return `ended ${diffMinutesAbs} minutes ago`;
+        return "ended moments ago";
     }
-    if (diffSeconds <= 0) return "právě skončila";
+    if (diffSeconds <= 0) return "just ended";
 
-    const rtf = new Intl.RelativeTimeFormat('cs', { numeric: 'auto' });
+    const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
     const days = Math.floor(diffSeconds / (3600 * 24));
     if (days > 1) return rtf.format(days, 'day');
-    if (days === 1) return 'zítra';
+    if (days === 1) return 'tomorrow';
     const hours = Math.floor(diffSeconds / 3600);
     if (hours > 0) return rtf.format(hours, 'hour');
     const minutes = Math.floor(diffSeconds / 60);
     if (minutes > 0) return rtf.format(minutes, 'minute');
-    return `za ${diffSeconds} s`;
-};
-const formatFullDateTime = (isoDateTime: string): string => {
-    return new Date(isoDateTime).toLocaleString('cs-CZ', { dateStyle: 'medium', timeStyle: 'short' });
+    return `in ${diffSeconds} seconds`;
 };
 
+// Format date in full datetime format
+const formatFullDateTime = (isoDateTime: string): string => {
+    return new Date(isoDateTime).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+};
+
+// Check if the current user can manage this poll
 const canManagePoll = (poll: Poll): boolean => {
   if (!authStore.user) return false;
   return poll.creatorUserId === authStore.user.id ||
@@ -376,15 +389,18 @@ const canManagePoll = (poll: Poll): boolean => {
          authStore.user.roles.includes(UserRoles.Spravce);
 };
 
+// Check if the current user has voted in this poll
 const userHasVoted = (pollId: string): boolean => {
     const poll = polls.value.find(p => p.pollId === pollId);
     return !!(poll && poll.userVotedOptionIds && poll.userVotedOptionIds.length > 0);
 };
 
+// Check if the user voted for a specific option
 const didUserVoteForOption = (poll: Poll, optionId: string): boolean => {
     return !!(poll.userVotedOptionIds && poll.userVotedOptionIds.includes(optionId));
 };
 
+// Check if user can submit vote (valid selection exists)
 const canSubmitVote = (pollId: string): boolean => {
     const poll = polls.value.find(p => p.pollId === pollId);
     if (!poll || isPollEffectivelyClosed(poll) || userHasVoted(pollId)) return false;
@@ -393,6 +409,7 @@ const canSubmitVote = (pollId: string): boolean => {
     return !!selection;
 };
 
+// Handle vote submission
 const handleVote = async (pollId: string) => {
   const poll = polls.value.find(p => p.pollId === pollId);
   if (!poll) return;
@@ -404,7 +421,7 @@ const handleVote = async (pollId: string) => {
     if (typeof selection === 'string' && selection) optionIdsToSubmit = [selection];
   }
   if (optionIdsToSubmit.length === 0) {
-    Swal.fire({ ...getFuturisticSwalBaseOptions('Chyba'), text: 'Prosím, vyberte alespoň jednu možnost.', icon: 'error' });
+    Swal.fire({ ...getFuturisticSwalBaseOptions('Error'), text: 'Please select at least one option.', icon: 'error' });
     return;
   }
   votingStates[pollId] = true;
@@ -415,17 +432,20 @@ const handleVote = async (pollId: string) => {
   }
 };
 
+// Get poll options with results, sorted by vote count
 const getPollOptionsWithResults = (poll: Poll): PollOption[] => {
     if (!poll.options) return [];
     return poll.options.map(opt => ({ ...opt, voteCount: opt.voteCount || 0 }))
                            .sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0));
 };
 
+// Calculate percentage for a vote option
 const calculatePercentage = (totalVotes: number, optionVotes: number): string => {
     if (totalVotes === 0) return '0.0';
     return ((optionVotes / totalVotes) * 100).toFixed(1);
 };
 
+// Check if an option is the winning option
 const isWinningOption = (poll: Poll, optionId: string): boolean => {
     if (!isPollEffectivelyClosed(poll) && !userHasVoted(poll.pollId)) return false;
     if (!poll.options || (poll.totalVotes || 0) === 0) return false;
@@ -436,6 +456,7 @@ const isWinningOption = (poll: Poll, optionId: string): boolean => {
     return currentOption?.voteCount === maxVotes && (maxVotes || 0) > 0;
 };
 
+// Base SweetAlert2 options for futuristic themed modals
 const getFuturisticSwalBaseOptions = (title: string): SweetAlertOptions => ({
   titleText: title,
   background: '#1A2033', color: '#E0E0E0',
@@ -450,10 +471,12 @@ const getFuturisticSwalBaseOptions = (title: string): SweetAlertOptions => ({
   buttonsStyling: false, heightAuto: false, allowEnterKey: true,
 });
 
+// Create SVG icon HTML for modal labels
 const createIconHtml = (pathData: string, size: number = 18, color: string = 'currentColor', extraStyle: string = ''): string => {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true" width="${size}" height="${size}" fill="${color}" style="${extraStyle}"><path d="${pathData}"></path></svg>`;
 };
 
+// Format date for datetime-local input
 const getLocalDateTimeForInput = (date: Date): string => {
     const year = date.getFullYear();
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -463,42 +486,43 @@ const getLocalDateTimeForInput = (date: Date): string => {
     return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
+// Open modal to create a new poll
 const openCreatePollModal = () => {
   const iconColor = 'white';
   const iconStyle = 'vertical-align: middle; margin-right: 8px;';
   let nextOptionId = 0;
 
   Swal.fire({
-    ...getFuturisticSwalBaseOptions('Vytvořit novou anketu'),
+    ...getFuturisticSwalBaseOptions('Create new poll'),
     html: `
       <div id="createPollForm" class="swal-form-container">
         <label for="swal-question" class="swal-label">
-            ${createIconHtml(mdiHelpCircleOutline, 18, iconColor, iconStyle)}Otázka:
+            ${createIconHtml(mdiHelpCircleOutline, 18, iconColor, iconStyle)}Question:
         </label>
-        <input id="swal-question" class="swal2-input futuristic-swal-input" placeholder="Např. Jaká je vaše oblíbená hra?">
+        <input id="swal-question" class="swal2-input futuristic-swal-input" placeholder="E.g. What is your favorite game?">
         <label for="swal-endTime" class="swal-label">
-            ${createIconHtml(mdiCalendarClock, 18, iconColor, iconStyle)}Datum a čas ukončení (lokální čas):
+            ${createIconHtml(mdiCalendarClock, 18, iconColor, iconStyle)}End date and time (local time):
         </label>
         <input id="swal-endTime" type="datetime-local" class="swal2-input futuristic-swal-input">
         <label for="swal-imageUrl" class="swal-label">
-            ${createIconHtml(mdiImage, 18, iconColor, iconStyle)}URL obrázku (volitelné):
+            ${createIconHtml(mdiImage, 18, iconColor, iconStyle)}Image URL (optional):
         </label>
         <input id="swal-imageUrl" class="swal2-input futuristic-swal-input" placeholder="https://example.com/image.png">
         <label class="swal-label">
-            ${createIconHtml(mdiFormatListBulletedSquare, 18, iconColor, iconStyle)}Možnosti odpovědí (min. 2):
+            ${createIconHtml(mdiFormatListBulletedSquare, 18, iconColor, iconStyle)}Answer options (min. 2):
         </label>
         <div id="swal-options-container" class="mb-2">
           <div class="swal-option-item mb-2">
-            <input class="swal2-input futuristic-swal-input" placeholder="Možnost 1" data-option-input-id="${nextOptionId++}">
+            <input class="swal2-input futuristic-swal-input" placeholder="Option 1" data-option-input-id="${nextOptionId++}">
           </div>
           <div class="swal-option-item mb-2">
-            <input class="swal2-input futuristic-swal-input" placeholder="Možnost 2" data-option-input-id="${nextOptionId++}">
+            <input class="swal2-input futuristic-swal-input" placeholder="Option 2" data-option-input-id="${nextOptionId++}">
           </div>
         </div>
-        <button id="swal-add-option" type="button" class="futuristic-btn-secondary">Přidat další možnost</button>
+        <button id="swal-add-option" type="button" class="futuristic-btn-secondary">Add another option</button>
         <label class="swal-checkbox-label">
           <input id="swal-isMultipleChoice" type="checkbox" class="swal2-checkbox futuristic-swal-checkbox">
-          ${createIconHtml(mdiCheckboxMultipleBlankOutline, 18, iconColor, iconStyle)}Povolit výběr více možností
+          ${createIconHtml(mdiCheckboxMultipleBlankOutline, 18, iconColor, iconStyle)}Allow selecting multiple options
         </label>
       </div>
     `,
@@ -511,9 +535,10 @@ const openCreatePollModal = () => {
         title: 'futuristic-swal-title font-oxanium',
         validationMessage: 'futuristic-swal-validation-message font-inter',
     },
-    confirmButtonText: 'Vytvořit anketu', cancelButtonText: 'Zrušit',
+    confirmButtonText: 'Create Poll', cancelButtonText: 'Cancel',
     showCancelButton: true, focusConfirm: false, showLoaderOnConfirm: true,
     didOpen: () => {
+      // Setup event listener for adding options
       const addOptionButton = document.getElementById('swal-add-option');
       const optionsContainer = document.getElementById('swal-options-container');
       addOptionButton?.addEventListener('click', () => {
@@ -521,12 +546,14 @@ const openCreatePollModal = () => {
         optionItemDiv.className = 'swal-option-item mb-2';
         const newInput = document.createElement('input');
         newInput.className = 'swal2-input futuristic-swal-input';
-        newInput.placeholder = `Možnost ${optionsContainer!.children.length + 1}`;
+        newInput.placeholder = `Option ${optionsContainer!.children.length + 1}`;
         newInput.dataset.optionInputId = `${nextOptionId++}`;
         optionItemDiv.appendChild(newInput);
         optionsContainer?.appendChild(optionItemDiv);
         newInput.focus();
       });
+      
+      // Set default end time (30 minutes from now)
       const endTimeInput = document.getElementById('swal-endTime') as HTMLInputElement;
       const now = new Date();
       endTimeInput.min = getLocalDateTimeForInput(now);
@@ -535,23 +562,29 @@ const openCreatePollModal = () => {
       (document.getElementById('swal-question') as HTMLInputElement)?.focus();
     },
     preConfirm: () => {
+      // Validate form inputs
       const question = (document.getElementById('swal-question') as HTMLInputElement).value.trim();
       const endTimeValue = (document.getElementById('swal-endTime') as HTMLInputElement).value;
       const imageUrl = (document.getElementById('swal-imageUrl') as HTMLInputElement).value.trim();
       const isMultipleChoice = (document.getElementById('swal-isMultipleChoice') as HTMLInputElement).checked;
       const optionsInputs = document.querySelectorAll('#swal-options-container input[data-option-input-id]');
       const options = Array.from(optionsInputs).map(input => ({ text: (input as HTMLInputElement).value.trim() })).filter(opt => opt.text !== '');
+      
       let validationMessage = '';
-      if (!question) validationMessage += 'Otázka je povinná.<br>';
-      else if (question.length < 5) validationMessage += 'Otázka musí mít alespoň 5 znaků.<br>';
-      if (!endTimeValue) validationMessage += 'Datum a čas ukončení je povinný.<br>';
-      else { const localEndDate = new Date(endTimeValue); if (localEndDate <= new Date()) validationMessage += 'Čas ukončení musí být v budoucnosti.<br>';}
-      if (options.length < 2) validationMessage += 'Musíte zadat alespoň dvě možnosti odpovědí.<br>';
-      if (imageUrl && !/^https?:\/\/[^\s/$.?#].[^\s]*$/i.test(imageUrl)) validationMessage += 'URL obrázku se zdá být neplatné.<br>';
+      if (!question) validationMessage += 'Question is required.<br>';
+      else if (question.length < 5) validationMessage += 'Question must be at least 5 characters long.<br>';
+      if (!endTimeValue) validationMessage += 'End date and time is required.<br>';
+      else { const localEndDate = new Date(endTimeValue); if (localEndDate <= new Date()) validationMessage += 'End time must be in the future.<br>';}
+      if (options.length < 2) validationMessage += 'At least two options are required.<br>';
+      if (imageUrl && !/^https?:\/\/[^\s/$.?#].[^\s]*$/i.test(imageUrl)) validationMessage += 'Image URL appears to be invalid.<br>';
+      
       if (validationMessage) { Swal.showValidationMessage(validationMessage); return false; }
+      
+      // Convert local time to UTC
       const localSelectedDate = new Date(endTimeValue);
       localSelectedDate.setHours(localSelectedDate.getHours() + 2);
       const finalUtcEndTime = localSelectedDate.toISOString();
+      
       return { question, endTime: finalUtcEndTime, imageUrl: imageUrl || undefined, options, isMultipleChoice } as CreatePollDto;
     }
   }).then(async (result) => {
@@ -561,6 +594,7 @@ const openCreatePollModal = () => {
   });
 };
 
+// Open modal to edit an existing poll
 const openEditPollModal = (poll: Poll) => {
   const iconColor = 'var(--v-theme-primary)';
   const iconStyle = 'vertical-align: middle; margin-right: 8px;';
@@ -569,16 +603,17 @@ const openEditPollModal = (poll: Poll) => {
   let tempOptions: UpdatePollOptionPayload[] = JSON.parse(JSON.stringify(poll.options.map(o => ({optionId: o.optionId, text: o.text, imageUrl: o.imageUrl || ''}))));
   let nextTempOptionIdCounter = 0;
 
+  // Generate HTML for poll options
   const generateOptionsHtml = (currentOptions: UpdatePollOptionPayload[]) => {
     let optionsHtml = '';
     currentOptions.forEach((opt, index) => {
         const tempDomId = opt.optionId || `new-edit-option-${index}-${Date.now()}`;
         optionsHtml += `
         <div class="swal-option-item mb-2" data-option-id="${opt.optionId || ''}" data-temp-id="${tempDomId}">
-          <input class="swal2-input futuristic-swal-input swal-option-text-input" value="${opt.text}" placeholder="Text možnosti ${index + 1}" ${poll.totalVotes && poll.totalVotes > 0 ? 'disabled' : ''}>
-          <input class="swal2-input futuristic-swal-input mt-1 swal-option-image-input" value="${opt.imageUrl || ''}" placeholder="URL obrázku (volitelné)" ${poll.totalVotes && poll.totalVotes > 0 ? 'disabled' : ''}>
+          <input class="swal2-input futuristic-swal-input swal-option-text-input" value="${opt.text}" placeholder="Option text ${index + 1}" ${poll.totalVotes && poll.totalVotes > 0 ? 'disabled' : ''}>
+          <input class="swal2-input futuristic-swal-input mt-1 swal-option-image-input" value="${opt.imageUrl || ''}" placeholder="Image URL (optional)" ${poll.totalVotes && poll.totalVotes > 0 ? 'disabled' : ''}>
           ${ !(poll.totalVotes && poll.totalVotes > 0) ?
-            `<button type="button" class="swal-remove-option-btn futuristic-btn-icon error" data-remove-temp-id="${tempDomId}" title="Smazat možnost">
+            `<button type="button" class="swal-remove-option-btn futuristic-btn-icon error" data-remove-temp-id="${tempDomId}" title="Delete option">
               ${createIconHtml(mdiTrashCanOutline, 16, 'var(--v-theme-error)')}
             </button>` : ''
           }
@@ -588,31 +623,31 @@ const openEditPollModal = (poll: Poll) => {
   };
 
   Swal.fire({
-    ...getFuturisticSwalBaseOptions(`Upravit anketu`),
+    ...getFuturisticSwalBaseOptions(`Edit poll`),
     html: `
       <div id="editPollForm" class="swal-form-container">
         <label for="swal-edit-question" class="swal-label">
-            ${createIconHtml(mdiHelpCircleOutline, 18, iconColor, iconStyle)}Otázka:
+            ${createIconHtml(mdiHelpCircleOutline, 18, iconColor, iconStyle)}Question:
         </label>
         <input id="swal-edit-question" class="swal2-input futuristic-swal-input" value="${poll.question}">
         <label for="swal-edit-endTime" class="swal-label">
-            ${createIconHtml(mdiCalendarClock, 18, iconColor, iconStyle)}Datum a čas ukončení (lokální čas):
+            ${createIconHtml(mdiCalendarClock, 18, iconColor, iconStyle)}End date and time (local time):
         </label>
         <input id="swal-edit-endTime" type="datetime-local" class="swal2-input futuristic-swal-input" value="${formattedPollEndTimeForInput}">
         <label for="swal-edit-imageUrl" class="swal-label">
-            ${createIconHtml(mdiImage, 18, iconColor, iconStyle)}URL obrázku ankety (volitelné):
+            ${createIconHtml(mdiImage, 18, iconColor, iconStyle)}Poll image URL (optional):
         </label>
         <input id="swal-edit-imageUrl" class="swal2-input futuristic-swal-input" value="${poll.imageUrl || ''}">
         <label class="swal-label">
-            ${createIconHtml(mdiFormatListBulletedSquare, 18, iconColor, iconStyle)}Možnosti odpovědí:
+            ${createIconHtml(mdiFormatListBulletedSquare, 18, iconColor, iconStyle)}Answer options:
         </label>
         <div id="swal-edit-options-container" class="mb-2">
             ${generateOptionsHtml(tempOptions)}
         </div>
         ${ !(poll.totalVotes && poll.totalVotes > 0) ?
-            `<button id="swal-edit-add-option" type="button" class="futuristic-btn-secondary">Přidat další možnost</button>` : ''
+            `<button id="swal-edit-add-option" type="button" class="futuristic-btn-secondary">Add option</button>` : ''
         }
-        ${poll.totalVotes && poll.totalVotes > 0 ? '<p class="font-inter text-warning text-caption mt-2">Upozornění: Anketa již má hlasy. Změna možností není povolena.</p>' : ''}
+        ${poll.totalVotes && poll.totalVotes > 0 ? '<p class="font-inter text-warning text-caption mt-2">Warning: This poll already has votes. Changing options is not allowed.</p>' : ''}
       </div>
     `,
     customClass: {
@@ -624,12 +659,13 @@ const openEditPollModal = (poll: Poll) => {
         title: 'futuristic-swal-title font-oxanium',
         validationMessage: 'futuristic-swal-validation-message font-inter',
     },
-    confirmButtonText: 'Uložit změny', cancelButtonText: 'Zrušit',
+    confirmButtonText: 'Save changes', cancelButtonText: 'Cancel',
     showCancelButton: true, focusConfirm: false, showLoaderOnConfirm: true,
     didOpen: (modalElement) => {
         const optionsContainer = modalElement.querySelector('#swal-edit-options-container');
         const addOptionButton = modalElement.querySelector('#swal-edit-add-option');
 
+        // Re-bind remove button event listeners after DOM changes
         const rebindRemoveListeners = () => {
             modalElement.querySelectorAll('.swal-remove-option-btn').forEach(btn => {
                 const oldBtn = btn;
@@ -649,6 +685,7 @@ const openEditPollModal = (poll: Poll) => {
             });
         };
 
+        // Setup event listener for adding options
         if (addOptionButton) {
             addOptionButton.addEventListener('click', () => {
                 tempOptions.push({ optionId: undefined, text: '', imageUrl: '' });
@@ -660,17 +697,20 @@ const openEditPollModal = (poll: Poll) => {
         }
         rebindRemoveListeners();
 
+        // Set min date for end time input
         const endTimeInput = modalElement.querySelector('#swal-edit-endTime') as HTMLInputElement;
         const now = new Date();
         endTimeInput.min = getLocalDateTimeForInput(now);
         (modalElement.querySelector('#swal-edit-question') as HTMLInputElement)?.focus();
     },
     preConfirm: () => {
+      // Validate form inputs
       const question = (document.getElementById('swal-edit-question') as HTMLInputElement).value.trim();
       const endTimeValue = (document.getElementById('swal-edit-endTime') as HTMLInputElement).value;
       const imageUrl = (document.getElementById('swal-edit-imageUrl') as HTMLInputElement).value.trim();
       const finalOptions: UpdatePollOptionPayload[] = [];
 
+      // Only collect options if the poll hasn't been voted on
       if (!(poll.totalVotes && poll.totalVotes > 0)) {
         document.querySelectorAll('#swal-edit-options-container .swal-option-item').forEach(itemDiv => {
             const textInput = itemDiv.querySelector('.swal-option-text-input') as HTMLInputElement;
@@ -690,22 +730,24 @@ const openEditPollModal = (poll: Poll) => {
           poll.options.forEach(opt => finalOptions.push({optionId: opt.optionId, text: opt.text, imageUrl: opt.imageUrl}));
       }
 
+      // Validate form data
       let validationMessage = '';
-      if (!question) validationMessage += 'Otázka je povinná.<br>';
-      else if (question.length < 5) validationMessage += 'Otázka musí mít alespoň 5 znaků.<br>';
-      if (!endTimeValue) validationMessage += 'Datum a čas ukončení je povinný.<br>';
+      if (!question) validationMessage += 'Question is required.<br>';
+      else if (question.length < 5) validationMessage += 'Question must be at least 5 characters long.<br>';
+      if (!endTimeValue) validationMessage += 'End date and time is required.<br>';
       else {
           const localEndDate = new Date(endTimeValue);
           const originalPollEndTime = new Date(poll.endTime);
           if (originalPollEndTime > new Date() && localEndDate <= new Date()) {
-            validationMessage += 'Nový čas ukončení musí být v budoucnosti, pokud anketa ještě neskončila.<br>';
+            validationMessage += 'New end time must be in the future if the poll has not ended yet.<br>';
           }
       }
-      if (finalOptions.length < 2) validationMessage += 'Musíte zadat alespoň dvě možnosti odpovědí.<br>';
-      if (imageUrl && !/^https?:\/\/[^\s/$.?#].[^\s]*$/i.test(imageUrl)) validationMessage += 'URL obrázku se zdá být neplatné.<br>';
+      if (finalOptions.length < 2) validationMessage += 'At least two options are required.<br>';
+      if (imageUrl && !/^https?:\/\/[^\s/$.?#].[^\s]*$/i.test(imageUrl)) validationMessage += 'Image URL appears to be invalid.<br>';
 
       if (validationMessage) { Swal.showValidationMessage(validationMessage); return false; }
 
+      // Convert local time to UTC
       const localSelectedDate = new Date(endTimeValue);
       localSelectedDate.setHours(localSelectedDate.getHours() + 2);
       const finalUtcEndTime = localSelectedDate.toISOString();
@@ -724,11 +766,12 @@ const openEditPollModal = (poll: Poll) => {
   });
 };
 
+// Show confirmation dialog before deleting a poll
 const confirmDeletePoll = (pollId: string) => {
   Swal.fire({
-    ...getFuturisticSwalBaseOptions('Opravdu smazat anketu?'),
-    text: "Tato akce je nevratná!", icon: 'warning',
-    showCancelButton: true, confirmButtonText: 'Ano, smazat', cancelButtonText: 'Zrušit',
+    ...getFuturisticSwalBaseOptions('Really delete this poll?'),
+    text: "This action cannot be undone!", icon: 'warning',
+    showCancelButton: true, confirmButtonText: 'Yes, delete it', cancelButtonText: 'Cancel',
   }).then(async (result) => {
     if (result.isConfirmed) {
         await deletePoll(pollId);

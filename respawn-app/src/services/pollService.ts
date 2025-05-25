@@ -1,59 +1,83 @@
-// src/services/pollService.ts
-import { useAuthStore } from '@/stores/authStore';
-import Swal, { type SweetAlertOptions } from 'sweetalert2';
+/**
+ * Poll Service Module
+ * This module provides functions to interact with the poll API endpoints
+ */
 
-const API_BASE_URL = 'http://localhost:5207/api/polls';
+import { useAuthStore } from '@/stores/authStore'
+import Swal, { type SweetAlertOptions } from 'sweetalert2'
 
-// Upraveno: PollOption může mít voteCount (přichází z API)
+// Base URL for the polls API
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL + '/api/polls'
+
+/**
+ * Represents a single poll option
+ */
 export interface PollOption {
-  optionId: string;
-  text: string;
-  imageUrl?: string;
-  voteCount?: number;
+  optionId: string
+  text: string
+  imageUrl?: string
+  voteCount?: number
 }
 
-// Rozhraní pro DTO posílané při úpravě, každá možnost má potenciálně ID
+/**
+ * Payload for updating a poll option
+ */
 export interface UpdatePollOptionPayload {
-    optionId?: string; // Bude přítomno pro existující, chybí pro nové
-    text: string;
-    imageUrl?: string;
+  optionId?: string
+  text: string
+  imageUrl?: string
 }
 
+/**
+ * Full poll data structure with all details
+ */
 export interface Poll {
-  pollId: string;
-  question: string;
-  endTime: string;
-  isClosed: boolean;
-  imageUrl?: string;
-  creatorUserId: string;
-  creatorNickname?: string;
-  options: PollOption[];
-  isMultipleChoice: boolean;
-  userVotedOptionIds?: string[];
-  totalVotes?: number;
+  pollId: string
+  question: string
+  endTime: string
+  isClosed: boolean
+  imageUrl?: string
+  creatorUserId: string
+  creatorNickname?: string
+  options: PollOption[]
+  isMultipleChoice: boolean
+  userVotedOptionIds?: string[]
+  totalVotes?: number
 }
 
+/**
+ * Data transfer object for creating a new poll
+ */
 export interface CreatePollDto {
-  question: string;
-  endTime: string;
-  imageUrl?: string;
-  options: Array<{ text: string; imageUrl?: string }>; // Nové možnosti nemají ID
-  isMultipleChoice: boolean;
+  question: string
+  endTime: string
+  imageUrl?: string
+  options: Array<{ text: string; imageUrl?: string }>
+  isMultipleChoice: boolean
 }
 
-// Upraveno: UpdatePollDto nyní obsahuje pole UpdatePollOptionPayload
+/**
+ * Data transfer object for updating an existing poll
+ */
 export interface UpdatePollDto {
-  question: string;
-  endTime: string;
-  imageUrl?: string;
-  options: UpdatePollOptionPayload[]; // Seznam možností k aktualizaci/přidání/smazání
-  // isMultipleChoice se nemění při úpravě
+  question: string
+  endTime: string
+  imageUrl?: string
+  options: UpdatePollOptionPayload[]
 }
 
+/**
+ * Data transfer object for submitting a vote
+ */
 export interface SubmitVoteDto {
-  optionIds: string[];
+  optionIds: string[]
 }
 
+/**
+ * Returns SweetAlert2 options with futuristic styling
+ * @param title - The title for the alert
+ * @returns SweetAlertOptions configuration
+ */
 const getFuturisticSwalOptions = (title: string): SweetAlertOptions => ({
   titleText: title,
   background: '#1A2033',
@@ -69,49 +93,69 @@ const getFuturisticSwalOptions = (title: string): SweetAlertOptions => ({
   },
   buttonsStyling: false,
   heightAuto: false,
-});
+})
 
+/**
+ * Fetches all available polls
+ * @returns Promise with an array of polls or empty array on failure
+ */
 export const getAllPolls = async (): Promise<Poll[]> => {
-  const authStore = useAuthStore();
+  const authStore = useAuthStore()
   if (!authStore.token) {
-    console.error('getAllPolls: Chybí autentizační token.');
-    return [];
+    console.error('getAllPolls: Missing authentication token.')
+    return []
   }
   try {
     const response = await fetch(API_BASE_URL, {
       headers: { Authorization: `Bearer ${authStore.token}` },
-    });
+    })
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: `Chyba serveru: ${response.statusText}` }));
-      throw new Error(errorData.message || 'Nepodařilo se načíst ankety.');
+      const errorData = await response
+        .json()
+        .catch(() => ({ message: `Server error: ${response.statusText}` }))
+      throw new Error(errorData.message || 'Failed to load polls.')
     }
-    return await response.json();
+    return await response.json()
   } catch (error: any) {
-    console.error('getAllPolls API error:', error);
-    Swal.fire({ ...getFuturisticSwalOptions('Chyba načítání anket'), text: error.message, icon: 'error' });
-    return [];
+    console.error('getAllPolls API error:', error)
+    Swal.fire({
+      ...getFuturisticSwalOptions('Error loading polls'),
+      text: error.message,
+      icon: 'error',
+    })
+    return []
   }
-};
+}
 
+/**
+ * Fetches a specific poll by ID
+ * @param pollId - ID of the poll to fetch
+ * @returns Promise with poll data or null on failure
+ */
 export const getPollById = async (pollId: string): Promise<Poll | null> => {
-  const authStore = useAuthStore();
-   if (!authStore.token) return null;
+  const authStore = useAuthStore()
+  if (!authStore.token) return null
   try {
     const response = await fetch(`${API_BASE_URL}/${pollId}`, {
       headers: { Authorization: `Bearer ${authStore.token}` },
-    });
-    if (!response.ok) throw new Error('Nepodařilo se načíst detail ankety.');
-    return await response.json();
+    })
+    if (!response.ok) throw new Error('Failed to load poll details.')
+    return await response.json()
   } catch (error: any) {
-    console.error(`getPollById (${pollId}) API error:`, error);
-    Swal.fire({ ...getFuturisticSwalOptions('Chyba'), text: error.message, icon: 'error' });
-    return null;
+    console.error(`getPollById (${pollId}) API error:`, error)
+    Swal.fire({ ...getFuturisticSwalOptions('Error'), text: error.message, icon: 'error' })
+    return null
   }
-};
+}
 
+/**
+ * Creates a new poll
+ * @param pollData - Data for creating the poll
+ * @returns Promise with created poll data or null on failure
+ */
 export const createPoll = async (pollData: CreatePollDto): Promise<Poll | null> => {
-  const authStore = useAuthStore();
-  if (!authStore.token) return null;
+  const authStore = useAuthStore()
+  if (!authStore.token) return null
   try {
     const response = await fetch(API_BASE_URL, {
       method: 'POST',
@@ -120,23 +164,39 @@ export const createPoll = async (pollData: CreatePollDto): Promise<Poll | null> 
         Authorization: `Bearer ${authStore.token}`,
       },
       body: JSON.stringify(pollData),
-    });
+    })
     if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Nepodařilo se vytvořit anketu.' }));
-        throw new Error(errorData.message || 'Nepodařilo se vytvořit anketu.');
+      const errorData = await response.json().catch(() => ({ message: 'Failed to create poll.' }))
+      throw new Error(errorData.message || 'Failed to create poll.')
     }
-    Swal.fire({ ...getFuturisticSwalOptions('Úspěch!'), text: 'Anketa byla úspěšně vytvořena.', icon: 'success', timer: 2000, showConfirmButton: false });
-    return await response.json();
+    Swal.fire({
+      ...getFuturisticSwalOptions('Success!'),
+      text: 'Poll was successfully created.',
+      icon: 'success',
+      timer: 2000,
+      showConfirmButton: false,
+    })
+    return await response.json()
   } catch (error: any) {
-    console.error('createPoll API error:', error);
-    Swal.fire({ ...getFuturisticSwalOptions('Chyba vytváření ankety'), text: error.message, icon: 'error' });
-    return null;
+    console.error('createPoll API error:', error)
+    Swal.fire({
+      ...getFuturisticSwalOptions('Error creating poll'),
+      text: error.message,
+      icon: 'error',
+    })
+    return null
   }
-};
+}
 
+/**
+ * Updates an existing poll
+ * @param pollId - ID of the poll to update
+ * @param pollData - Updated poll data
+ * @returns Promise with updated poll data or null on failure
+ */
 export const updatePoll = async (pollId: string, pollData: UpdatePollDto): Promise<Poll | null> => {
-  const authStore = useAuthStore();
-  if (!authStore.token) return null;
+  const authStore = useAuthStore()
+  if (!authStore.token) return null
   try {
     const response = await fetch(`${API_BASE_URL}/${pollId}`, {
       method: 'PUT',
@@ -145,44 +205,75 @@ export const updatePoll = async (pollId: string, pollData: UpdatePollDto): Promi
         Authorization: `Bearer ${authStore.token}`,
       },
       body: JSON.stringify(pollData),
-    });
+    })
     if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Nepodařilo se aktualizovat anketu.' }));
-        throw new Error(errorData.message || 'Nepodařilo se aktualizovat anketu.');
+      const errorData = await response.json().catch(() => ({ message: 'Failed to update poll.' }))
+      throw new Error(errorData.message || 'Failed to update poll.')
     }
-    Swal.fire({ ...getFuturisticSwalOptions('Úspěch!'), text: 'Anketa byla úspěšně aktualizována.', icon: 'success', timer: 2000, showConfirmButton: false });
-    return await response.json(); // Očekáváme, že API vrátí aktualizovanou anketu
+    Swal.fire({
+      ...getFuturisticSwalOptions('Success!'),
+      text: 'Poll was successfully updated.',
+      icon: 'success',
+      timer: 2000,
+      showConfirmButton: false,
+    })
+    return await response.json() // API is expected to return the updated poll
   } catch (error: any) {
-    console.error(`updatePoll (${pollId}) API error:`, error);
-    Swal.fire({ ...getFuturisticSwalOptions('Chyba aktualizace ankety'), text: error.message, icon: 'error' });
-    return null;
+    console.error(`updatePoll (${pollId}) API error:`, error)
+    Swal.fire({
+      ...getFuturisticSwalOptions('Error updating poll'),
+      text: error.message,
+      icon: 'error',
+    })
+    return null
   }
-};
+}
 
+/**
+ * Deletes a poll
+ * @param pollId - ID of the poll to delete
+ * @returns Promise with boolean indicating success or failure
+ */
 export const deletePoll = async (pollId: string): Promise<boolean> => {
-  const authStore = useAuthStore();
-  if (!authStore.token) return false;
+  const authStore = useAuthStore()
+  if (!authStore.token) return false
   try {
     const response = await fetch(`${API_BASE_URL}/${pollId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${authStore.token}` },
-    });
+    })
     if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Nepodařilo se smazat anketu.' }));
-        throw new Error(errorData.message || 'Nepodařilo se smazat anketu.');
+      const errorData = await response.json().catch(() => ({ message: 'Failed to delete poll.' }))
+      throw new Error(errorData.message || 'Failed to delete poll.')
     }
-    Swal.fire({ ...getFuturisticSwalOptions('Smazáno!'), text: 'Anketa byla úspěšně smazána.', icon: 'success', timer: 2000, showConfirmButton: false });
-    return true;
+    Swal.fire({
+      ...getFuturisticSwalOptions('Deleted!'),
+      text: 'Poll was successfully deleted.',
+      icon: 'success',
+      timer: 2000,
+      showConfirmButton: false,
+    })
+    return true
   } catch (error: any) {
-    console.error(`deletePoll (${pollId}) API error:`, error);
-    Swal.fire({ ...getFuturisticSwalOptions('Chyba smazání ankety'), text: error.message, icon: 'error' });
-    return false;
+    console.error(`deletePoll (${pollId}) API error:`, error)
+    Swal.fire({
+      ...getFuturisticSwalOptions('Error deleting poll'),
+      text: error.message,
+      icon: 'error',
+    })
+    return false
   }
-};
+}
 
+/**
+ * Submits a vote for a poll
+ * @param pollId - ID of the poll to vote on
+ * @param voteData - Vote data containing selected option IDs
+ * @returns Promise with updated poll data or null on failure
+ */
 export const submitVote = async (pollId: string, voteData: SubmitVoteDto): Promise<Poll | null> => {
-  const authStore = useAuthStore();
-  if (!authStore.token) return null;
+  const authStore = useAuthStore()
+  if (!authStore.token) return null
   try {
     const response = await fetch(`${API_BASE_URL}/${pollId}/vote`, {
       method: 'POST',
@@ -191,16 +282,22 @@ export const submitVote = async (pollId: string, voteData: SubmitVoteDto): Promi
         Authorization: `Bearer ${authStore.token}`,
       },
       body: JSON.stringify(voteData),
-    });
+    })
     if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Nepodařilo se odeslat hlas.' }));
-        throw new Error(errorData.message || 'Nepodařilo se odeslat hlas.');
+      const errorData = await response.json().catch(() => ({ message: 'Failed to submit vote.' }))
+      throw new Error(errorData.message || 'Failed to submit vote.')
     }
-    Swal.fire({ ...getFuturisticSwalOptions('Hlasováno!'), text: 'Váš hlas byl úspěšně zaznamenán.', icon: 'success', timer: 2000, showConfirmButton: false });
-    return await response.json();
+    Swal.fire({
+      ...getFuturisticSwalOptions('Vote recorded!'),
+      text: 'Your vote was successfully submitted.',
+      icon: 'success',
+      timer: 2000,
+      showConfirmButton: false,
+    })
+    return await response.json()
   } catch (error: any) {
-    console.error(`submitVote (${pollId}) API error:`, error);
-    Swal.fire({ ...getFuturisticSwalOptions('Chyba hlasování'), text: error.message, icon: 'error' });
-    return null;
+    console.error(`submitVote (${pollId}) API error:`, error)
+    Swal.fire({ ...getFuturisticSwalOptions('Error voting'), text: error.message, icon: 'error' })
+    return null
   }
-};
+}

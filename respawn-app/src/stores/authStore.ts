@@ -37,18 +37,49 @@ const getFuturisticSwalOptions = (title: string) => {
 }
 
 export const useAuthStore = defineStore('auth', {
+  /**
+   * Authentication state
+   * @returns Initial authentication state with data from localStorage
+   */
   state: (): AuthState => ({
+    /** Authentication token */
     token: localStorage.getItem('authToken') || null,
+    /** User information */
     user: JSON.parse(localStorage.getItem('authUser') || 'null'),
+    /** Flag indicating if user is authenticated */
     isAuthenticated: !!localStorage.getItem('authToken'),
+    /** Token expiration date */
     expiresAt: localStorage.getItem('authExpiresAt')
       ? new Date(localStorage.getItem('authExpiresAt')!)
       : null,
   }),
+  
+  /**
+   * Authentication getters
+   */
   getters: {
+    /** 
+     * Checks if user is currently logged in
+     * @returns Boolean indicating login status
+     */
     isLoggedIn: (state) => state.isAuthenticated && state.token,
+    
+    /**
+     * Gets current user information
+     * @returns User object or null if not authenticated
+     */
     currentUser: (state) => state.user,
+    
+    /**
+     * Gets authentication token
+     * @returns Current authentication token or null
+     */
     getToken: (state) => state.token,
+    
+    /**
+     * Generates user initials from nickname
+     * @returns Two uppercase letters or '??' if no nickname available
+     */
     userInitials: (state) => {
       if (state.user && state.user.nickname) {
         return state.user.nickname.substring(0, 2).toUpperCase()
@@ -56,7 +87,17 @@ export const useAuthStore = defineStore('auth', {
       return '??'
     },
   },
+  
+  /**
+   * Authentication actions
+   */
   actions: {
+    /**
+     * Sets authentication data after successful login
+     * @param token - Authentication token
+     * @param user - User information
+     * @param expiresAt - Token expiration date
+     */
     setAuthData(token: string, user: UserInfo, expiresAt: string | Date) {
       this.token = token
       this.user = user
@@ -87,7 +128,7 @@ export const useAuthStore = defineStore('auth', {
         showConfirmButton: false,
       })
     },
-    // Akce pro kontrolu expirace tokenu
+    // Actions to check token expiration and handle automatic logout
     checkTokenExpiration() {
       if (this.expiresAt && new Date() > this.expiresAt) {
         this.clearAuthData()

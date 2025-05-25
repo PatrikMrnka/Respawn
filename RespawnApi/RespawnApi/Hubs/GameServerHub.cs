@@ -1,13 +1,17 @@
-﻿// Hubs/GameServerHub.cs
-using Microsoft.AspNetCore.SignalR;
+﻿using Microsoft.AspNetCore.SignalR;
 using RespawnApi.Application.DTOs.GameServer;
-using System.Threading.Tasks;
 
 namespace RespawnApi.Hubs
 {
+    /// <summary>
+    /// SignalR hub for broadcasting game server updates, status changes, and removals to connected clients.
+    /// </summary>
     public class GameServerHub : Hub
     {
-        // Metoda, kterou bude server volat k odeslání aktualizace stavu herního serveru
+        /// <summary>
+        /// Broadcasts an update about a game server to all connected clients.
+        /// </summary>
+        /// <param name="server">The updated game server information.</param>
         public async Task BroadcastGameServerUpdate(GameServerDto server)
         {
             if (Clients != null)
@@ -16,6 +20,10 @@ namespace RespawnApi.Hubs
             }
         }
 
+        /// <summary>
+        /// Broadcasts a status update for a game server to all connected clients.
+        /// </summary>
+        /// <param name="statusUpdate">The status update information for the game server.</param>
         public async Task BroadcastGameServerStatus(GameServerStatusUpdateDto statusUpdate)
         {
             if (Clients != null)
@@ -24,6 +32,10 @@ namespace RespawnApi.Hubs
             }
         }
 
+        /// <summary>
+        /// Broadcasts the removal of a game server to all connected clients.
+        /// </summary>
+        /// <param name="gameServerId">The unique identifier of the removed game server.</param>
         public async Task BroadcastGameServerRemoval(Guid gameServerId)
         {
             if (Clients != null)

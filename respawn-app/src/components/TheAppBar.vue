@@ -1,7 +1,10 @@
 <template>
   <v-app-bar app color="surface" density="compact" class="futuristic-app-bar" elevation="2">
-    <v-app-bar-nav-icon @click.stop="emitToggleLeftDrawer" class="futuristic-icon-btn"></v-app-bar-nav-icon>
-    
+    <v-app-bar-nav-icon
+      @click.stop="emitToggleLeftDrawer"
+      class="futuristic-icon-btn"
+    ></v-app-bar-nav-icon>
+
     <v-toolbar-title class="font-oxanium app-title">
       <router-link to="/" class="text-decoration-none text-primary">
         <v-icon :icon="mdiRocketLaunchOutline" start></v-icon>
@@ -12,76 +15,96 @@
     <v-spacer></v-spacer>
 
     <template v-if="!authStore.isLoggedIn">
-      <v-btn @click="showLoginModal" class="futuristic-btn auth-btn mx-1" :prepend-icon="mdiLoginVariant">
+      <v-btn
+        @click="showLoginModal"
+        class="futuristic-btn auth-btn mx-1"
+        :prepend-icon="mdiLoginVariant"
+      >
         Přihlásit se
       </v-btn>
-      <v-btn @click="showRegisterModal" class="futuristic-btn-secondary auth-btn mx-1" :prepend-icon="mdiAccountPlusOutline">
+      <v-btn
+        @click="showRegisterModal"
+        class="futuristic-btn-secondary auth-btn mx-1"
+        :prepend-icon="mdiAccountPlusOutline"
+      >
         Registrovat
       </v-btn>
     </template>
     <template v-else>
-      <span class="mr-3 font-inter text-subtitle-2 d-none d-sm-inline">Vítej, {{ authStore.user?.nickname }}!</span>
-      <v-btn @click="handleLogout" class="futuristic-btn error-btn mx-1" :prepend-icon="mdiLogoutVariant">
+      <span class="mr-3 font-inter text-subtitle-2 d-none d-sm-inline"
+        >Vítej, {{ authStore.user?.nickname }}!</span
+      >
+      <v-btn
+        @click="handleLogout"
+        class="futuristic-btn error-btn mx-1"
+        :prepend-icon="mdiLogoutVariant"
+      >
         Odhlásit se
       </v-btn>
     </template>
 
-    <v-app-bar-nav-icon @click.stop="emitToggleRightDrawer" class="futuristic-icon-btn" v-if="authStore.isLoggedIn">
-        <v-icon :icon="mdiAccountGroup"></v-icon>
+    <v-app-bar-nav-icon
+      @click.stop="emitToggleRightDrawer"
+      class="futuristic-icon-btn"
+      v-if="authStore.isLoggedIn"
+    >
+      <v-icon :icon="mdiAccountGroup"></v-icon>
     </v-app-bar-nav-icon>
   </v-app-bar>
 </template>
 
 <script setup lang="ts">
-// import { computed } from 'vue'; // Již není potřeba pro isUserAdmin/isUserSpravce
-import { useAuthStore } from '@/stores/authStore';
-import { displayLoginModal, displayRegisterModal } from '@/services/authService';
+import { useAuthStore } from '@/stores/authStore'
+import { displayLoginModal, displayRegisterModal } from '@/services/authService'
 import {
-    mdiRocketLaunchOutline,
-    mdiLoginVariant,
-    mdiAccountPlusOutline,
-    mdiLogoutVariant,
-    mdiAccountGroup
-} from '@mdi/js';
+  mdiRocketLaunchOutline,
+  mdiLoginVariant,
+  mdiAccountPlusOutline,
+  mdiLogoutVariant,
+  mdiAccountGroup,
+} from '@mdi/js'
 
-const authStore = useAuthStore();
+const authStore = useAuthStore()
 
-const emit = defineEmits(['toggle-left-drawer', 'toggle-right-drawer']);
+const emit = defineEmits(['toggle-left-drawer', 'toggle-right-drawer'])
 
 const emitToggleLeftDrawer = () => {
-  emit('toggle-left-drawer');
-};
+  emit('toggle-left-drawer')
+}
 
 const emitToggleRightDrawer = () => {
-  emit('toggle-right-drawer');
-};
+  emit('toggle-right-drawer')
+}
 
 const showLoginModal = async () => {
   try {
-    await displayLoginModal();
+    await displayLoginModal()
   } catch (error) {
-    console.debug('Login modal was closed or failed.', error);
+    console.debug('Login modal was closed or failed.', error)
   }
-};
+}
 
 const showRegisterModal = async () => {
   try {
-    await displayRegisterModal();
+    await displayRegisterModal()
   } catch (error) {
-    console.debug('Register modal was closed or failed.', error);
+    console.debug('Register modal was closed or failed.', error)
   }
-};
+}
 
 const handleLogout = async () => {
-  await authStore.logout();
-};
-
+  await authStore.logout()
+}
 </script>
 
 <style scoped>
 .futuristic-app-bar {
   border-bottom: 1px solid rgba(var(--v-theme-primary-rgb), 0.2) !important;
-  background: linear-gradient(to right, rgba(var(--v-theme-surface-rgb), 0.95), rgba(var(--v-theme-surface-rgb), 0.85));
+  background: linear-gradient(
+    to right,
+    rgba(var(--v-theme-surface-rgb), 0.95),
+    rgba(var(--v-theme-surface-rgb), 0.85)
+  );
   backdrop-filter: blur(10px);
 }
 
@@ -91,11 +114,17 @@ const handleLogout = async () => {
 }
 
 @keyframes pulse-glow {
-  0% { text-shadow: 0 0 5px rgba(var(--v-theme-primary-rgb), 0.5); }
-  100% { text-shadow: 0 0 15px rgba(var(--v-theme-primary-rgb), 1); }
+  0% {
+    text-shadow: 0 0 5px rgba(var(--v-theme-primary-rgb), 0.5);
+  }
+  100% {
+    text-shadow: 0 0 15px rgba(var(--v-theme-primary-rgb), 1);
+  }
 }
 
-.futuristic-btn, .futuristic-btn-secondary, .error-btn {
+.futuristic-btn,
+.futuristic-btn-secondary,
+.error-btn {
   font-family: var(--font-family-headings-exo2);
   font-weight: 600;
   border-radius: 6px;
@@ -128,7 +157,7 @@ const handleLogout = async () => {
 .error-btn {
   background-color: var(--v-theme-error) !important;
   color: white !important;
-   border: none;
+  border: none;
   box-shadow: 0 2px 8px rgba(var(--v-theme-error-rgb), 0.4);
 }
 .error-btn:hover {
@@ -142,9 +171,9 @@ const handleLogout = async () => {
 }
 
 .futuristic-icon-btn {
-    color: var(--v-theme-text-secondary);
+  color: var(--v-theme-text-secondary);
 }
 .futuristic-icon-btn:hover {
-    color: var(--v-theme-primary);
+  color: var(--v-theme-primary);
 }
 </style>

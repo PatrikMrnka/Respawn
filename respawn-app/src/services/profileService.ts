@@ -1,7 +1,7 @@
 import { useAuthStore } from '@/stores/authStore'
 import Swal from 'sweetalert2'
 
-const API_BASE_URL = 'http://localhost:5207/api/userprofile'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL + '/api/userprofile'
 
 const getFuturisticSwalOptions = (title: string) => {
   return {

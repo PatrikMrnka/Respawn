@@ -1,13 +1,12 @@
-﻿// File: haha/RespawnApi/RespawnApi/Application/Services/GameServerQueryService.cs
-using Microsoft.Extensions.Logging;
-using RespawnApi.Application.DTOs.GameServer;
+﻿using RespawnApi.Application.DTOs.GameServer;
 using RespawnApi.Application.Interfaces;
 using RespawnApi.Domain.Entities;
-using System;
-using System.Threading.Tasks;
 
 namespace RespawnApi.Application.Services
 {
+    /// <summary>
+    /// Provides methods to query game server details based on the game type.
+    /// </summary>
     public class GameServerQueryService : IGameServerQueryService
     {
         private readonly IGameServerInfoStrategyFactory _strategyFactory;
@@ -26,13 +25,13 @@ namespace RespawnApi.Application.Services
             if (serverEntity == null)
             {
                 _logger.LogWarning("GetServerDetailsAsync voláno s null serverEntity.");
-                return null; // Nebo vrátit fallback DTO, pokud basicDto je k dispozici
+                return null;
             }
-            if (basicDto == null) // basicDto by mělo být vždy dostupné, pokud serverEntity existuje
+
+            if (basicDto == null)
             {
-                _logger.LogWarning("GetServerDetailsAsync voláno s null basicDto pro server {ServerId}.", serverEntity.GameServerId);
-                // Můžete vytvořit basicDto z serverEntity zde, pokud je to nutné
-                // Prozatím předpokládáme, že volající poskytne platné basicDto
+                _logger.LogWarning("GetServerDetailsAsync voláno s null basicDto pro server {ServerId}.",
+                    serverEntity.GameServerId);
                 return null;
             }
 
@@ -42,11 +41,11 @@ namespace RespawnApi.Application.Services
 
             IGameServerInfoStrategy strategy = _strategyFactory.GetStrategy(serverEntity.GameType);
 
-            // Továrna by měla vždy vrátit nějakou strategii (alespoň NoDetailsStrategy)
-            // Kontrola na null je spíše pro robustnost, pokud by továrna mohla selhat.
-            if (strategy == null)
+            if (strategy == null) // if the strategy is not found, log an error and return a default DTO
             {
-                _logger.LogError("Nepodařilo se získat strategii z továrny pro GameType: {GameType}. Toto by se nemělo stát, pokud je továrna správně nakonfigurována s výchozí strategií.", serverEntity.GameType);
+                _logger.LogError(
+                    "Nepodařilo se získat strategii z továrny pro GameType: {GameType}. Toto by se nemělo stát, pokud je továrna správně nakonfigurována s výchozí strategií.",
+                    serverEntity.GameType);
                 return new GameServerDetailDto
                 {
                     GameServerId = basicDto.GameServerId,
@@ -67,7 +66,7 @@ namespace RespawnApi.Application.Services
                 _logger.LogInformation("Používám strategii {StrategyName} pro server {ServerName} ({GameType})",
                     strategy.GetType().Name, serverEntity.Name, serverEntity.GameType);
 
-                // Předáme serverEntity i basicDto. Strategie se může rozhodnout, co použije.
+                
                 return await strategy.GetServerDetailsAsync(serverEntity, basicDto);
             }
             catch (Exception ex)
@@ -85,7 +84,8 @@ namespace RespawnApi.Application.Services
                     Port = basicDto.Port,
                     ContainerId = basicDto.ContainerId,
                     CreatedAt = basicDto.CreatedAt,
-                    StatusDetails = $"Chyba při získávání detailů serveru pomocí strategie {strategy.GetType().Name}: {ex.Message}",
+                    StatusDetails =
+                        $"Chyba při získávání detailů serveru pomocí strategie {strategy.GetType().Name}: {ex.Message}",
                     Players = new System.Collections.Generic.List<PlayerDetailDto>()
                 };
             }

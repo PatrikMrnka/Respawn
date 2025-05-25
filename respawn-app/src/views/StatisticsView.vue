@@ -1,5 +1,12 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import WelcomeMessage from '@/components/WelcomeMessage.vue';
+import { useAuthStore } from '@/stores/authStore';
+
+const authStore = useAuthStore();
+</script>
 
 <template>
-  <main></main>
+  <main>
+    <WelcomeMessage v-if="!authStore.isLoggedIn" />
+  </main>
 </template>

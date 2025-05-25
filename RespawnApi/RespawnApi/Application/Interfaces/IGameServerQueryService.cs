@@ -1,7 +1,5 @@
-﻿// File: haha/RespawnApi/RespawnApi/Application/Interfaces/IGameServerQueryService.cs
-using RespawnApi.Application.DTOs.GameServer;
-using RespawnApi.Domain.Entities; // Potřebné pro GameServer entitu
-using System.Threading.Tasks;
+﻿using RespawnApi.Application.DTOs.GameServer;
+using RespawnApi.Domain.Entities;
 
 namespace RespawnApi.Application.Interfaces
 {

@@ -1,5 +1,4 @@
-﻿// File: haha/RespawnApi/RespawnApi/Program.cs
-using System.Text;
+﻿using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -15,20 +14,21 @@ using RespawnApi.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// CORS
+// CORS configuration
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowRespawnApp", policyBuilder =>
     {
         policyBuilder.WithOrigins("http://localhost:5173") // Frontend URL
-                     .AllowAnyHeader()
-                     .AllowAnyMethod()
-                     .AllowCredentials(); // Required for SignalR with credentials
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials(); // Required for SignalR with credentials
     });
 });
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-var serverVersionsString = builder.Configuration["MySqlSettings:ServerVersion"] ?? "10.3.32"; // Default version if not specified
+var serverVersionsString =
+    builder.Configuration["MySqlSettings:ServerVersion"] ?? "10.3.32"; // Default version if not specified
 var serverVersion = new MySqlServerVersion(new Version(serverVersionsString));
 
 builder.Services.AddDbContext<RespawnDbContext>(options =>
@@ -37,19 +37,19 @@ builder.Services.AddDbContext<RespawnDbContext>(options =>
             maxRetryCount: 5,
             maxRetryDelay: TimeSpan.FromSeconds(30),
             errorNumbersToAdd: null)
-        ));
+    ));
 
 builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
-{
-    options.Password.RequireDigit = true;
-    options.Password.RequireLowercase = true;
-    options.Password.RequireUppercase = false;
-    options.Password.RequireNonAlphanumeric = false;
-    options.Password.RequiredLength = 5;
-    options.User.RequireUniqueEmail = true;
-})
-.AddEntityFrameworkStores<RespawnDbContext>()
-.AddDefaultTokenProviders();
+    {
+        options.Password.RequireDigit = true;
+        options.Password.RequireLowercase = true;
+        options.Password.RequireUppercase = false;
+        options.Password.RequireNonAlphanumeric = false;
+        options.Password.RequiredLength = 5;
+        options.User.RequireUniqueEmail = true;
+    })
+    .AddEntityFrameworkStores<RespawnDbContext>()
+    .AddDefaultTokenProviders();
 
 builder.Services.AddIdentityCore<IdentityUser>()
     .AddRoles<IdentityRole>() // Ensure roles are available for IdentityCore
@@ -61,69 +61,66 @@ var key = Encoding.ASCII.GetBytes(jwtSettings["Key"] ??
                                   throw new InvalidOperationException("JWT Key not found configuration."));
 
 builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.SaveToken = true;
-    options.RequireHttpsMetadata = false; // Set to true in production
-    options.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtSettings["Issuer"],
-        ValidAudience = jwtSettings["Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(key),
-        ClockSkew = TimeSpan.Zero // Remove clock skew for precise expiration
-    };
-    options.Events = new JwtBearerEvents
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddJwtBearer(options =>
     {
-        OnMessageReceived = context =>
+        options.SaveToken = true;
+        options.RequireHttpsMetadata = false; // Set to true in production
+        options.TokenValidationParameters = new TokenValidationParameters
         {
-            var accessToken = context.Request.Query["access_token"];
-            var path = context.HttpContext.Request.Path;
-            if (!string.IsNullOrEmpty(accessToken) &&
-                (path.StartsWithSegments("/pollHub") ||
-                 path.StartsWithSegments("/presenceHub") ||
-                 path.StartsWithSegments("/gameServerHub") ||
-                 path.StartsWithSegments("/serverLogHub"))) // <-- ADDED /serverLogHub
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtSettings["Issuer"],
+            ValidAudience = jwtSettings["Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(key),
+            ClockSkew = TimeSpan.Zero // Remove clock skew for precise expiration
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
             {
-                context.Token = accessToken;
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    (path.StartsWithSegments("/pollHub") ||
+                     path.StartsWithSegments("/presenceHub") ||
+                     path.StartsWithSegments("/gameServerHub") ||
+                     path.StartsWithSegments("/serverLogHub")))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
             }
-            return Task.CompletedTask;
-        }
-    };
-});
+        };
+    });
 
 // Dependency Injection
 builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddSingleton<IUserPresenceService, UserPresenceService>();
 builder.Services.AddScoped<IGameServerRepository, GameServerRepository>();
+builder.Services.AddScoped<IPollRepository, PollRepository>();
 builder.Services.AddScoped<IContainerManagementService, ContainerManagementService>();
 builder.Services.AddScoped<IVolumeManagementService, VolumeManagementService>();
 builder.Services.AddScoped<IImageManagementService, ImageManagementService>();
 builder.Services.AddScoped<IGameServerQueryService, GameServerQueryService>();
 builder.Services.AddHostedService<GameServerStatusMonitorService>();
 
-// Registrace strategií
+// Register strategies
 builder.Services.AddScoped<A2SGoldSourceStrategy>();
-// Zde byste registrovali další strategie, např.
-// builder.Services.AddScoped<A2SSourceStrategy>();
-// builder.Services.AddScoped<RconMinecraftStrategy>();
 builder.Services.AddScoped<NoDetailsStrategy>();
 
-// Registrace továrny strategií
+// Register strategy factory
 builder.Services.AddScoped<IGameServerInfoStrategyFactory, GameServerInfoStrategyFactory>();
 
-// Registrace hlavní služby pro dotazování (která používá továrnu)
-// Stará IGameServerQueryService (s UdpClient) je nyní A2SGoldSourceStrategy.
-// Nová IGameServerQueryService je ta, co používá factory.
+// Register main query service (which uses the factory)
 builder.Services.AddScoped<IGameServerQueryService, GameServerQueryService>();
 
 builder.Services.AddHostedService<GameServerStatusMonitorService>();
@@ -143,15 +140,18 @@ builder.Services.AddSwaggerGen(options =>
         BearerFormat = "JWT",
         Scheme = "Bearer"
     });
-    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement {
+    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
         {
-            new Microsoft.OpenApi.Models.OpenApiSecurityScheme {
-                Reference = new Microsoft.OpenApi.Models.OpenApiReference {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
                     Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
                     Id = "Bearer"
                 }
             },
-            new string[] {}
+            new string[] { }
         }
     });
 });
@@ -171,53 +171,62 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Chyba pri seedovani databaze.");
+        logger.LogError(ex, "Error while seeding the database.");
     }
 }
 
-async Task SeedRolesAndAdminAsync(UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager, ILogger<Program> logger, IServiceProvider services)
+async Task SeedRolesAndAdminAsync(UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager,
+    ILogger<Program> logger, IServiceProvider services)
 {
-    string[] roleNames = { RespawnApi.Domain.Enums.UserRoles.Administrator, RespawnApi.Domain.Enums.UserRoles.Spravce, RespawnApi.Domain.Enums.UserRoles.Uzivatel };
+    string[] roleNames =
+    {
+        RespawnApi.Domain.Enums.UserRoles.Administrator, RespawnApi.Domain.Enums.UserRoles.Spravce,
+        RespawnApi.Domain.Enums.UserRoles.Uzivatel
+    };
     foreach (var roleName in roleNames)
     {
         var roleExist = await roleManager.RoleExistsAsync(roleName);
         if (!roleExist)
         {
             await roleManager.CreateAsync(new IdentityRole(roleName));
-            logger.LogInformation("Role '{RoleName}' byla vytvorena.", roleName);
+            logger.LogInformation("Role '{RoleName}' was created.", roleName);
         }
     }
+
     var adminUser = await userManager.FindByNameAsync("patricek");
     if (adminUser == null)
     {
-        var newAdmin = new IdentityUser { UserName = "patricek", Email = "patrik.mrnka12@gmail.com", EmailConfirmed = true };
-        var createAdminResult = await userManager.CreateAsync(newAdmin, "a1234"); // Zvažte silnější heslo
+        var newAdmin = new IdentityUser
+            { UserName = "patricek", Email = "patrik.mrnka12@gmail.com", EmailConfirmed = true };
+        var createAdminResult = await userManager.CreateAsync(newAdmin, "a1234");
         if (createAdminResult.Succeeded)
         {
             await userManager.AddToRoleAsync(newAdmin, RespawnApi.Domain.Enums.UserRoles.Administrator);
-            logger.LogInformation("Uzivatel 'patricek' byl vytvoren a prirazen do role Administrator.");
+            logger.LogInformation("User 'patricek' was created and assigned to the Administrator role.");
 
             // Create UserProfile for the admin
-            var userProfileRepository = services.GetRequiredService<RespawnApi.DataAccess.Interfaces.IUserProfileRepository>();
-            var adminProfile = new RespawnApi.Domain.Entities.UserProfile { UserId = newAdmin.Id, Nickname = newAdmin.UserName!, AvatarUrl = null };
+            var userProfileRepository =
+                services.GetRequiredService<RespawnApi.DataAccess.Interfaces.IUserProfileRepository>();
+            var adminProfile = new RespawnApi.Domain.Entities.UserProfile
+                { UserId = newAdmin.Id, Nickname = newAdmin.UserName!, AvatarUrl = null };
             await userProfileRepository.AddAsync(adminProfile);
-            logger.LogInformation("UserProfile pro 'patricek' byl vytvoren.");
+            logger.LogInformation("UserProfile for 'patricek' was created.");
         }
         else
         {
             foreach (var error in createAdminResult.Errors)
             {
-                logger.LogError("Chyba pri vytvareni uzivatele 'patricek': {ErrorDescription}", error.Description);
+                logger.LogError("Error while creating user 'patricek': {ErrorDescription}", error.Description);
             }
         }
     }
     else
     {
-        logger.LogInformation("Uzivatel 'patricek' jiz existuje.");
+        logger.LogInformation("User 'patricek' already exists.");
         if (!await userManager.IsInRoleAsync(adminUser, RespawnApi.Domain.Enums.UserRoles.Administrator))
         {
             await userManager.AddToRoleAsync(adminUser, RespawnApi.Domain.Enums.UserRoles.Administrator);
-            logger.LogInformation("Uzivatel 'patricek' byl prirazen do role Administrator.");
+            logger.LogInformation("User 'patricek' was assigned to the Administrator role.");
         }
     }
 }
@@ -238,6 +247,6 @@ app.MapControllers();
 app.MapHub<PollHub>("/pollHub");
 app.MapHub<PresenceHub>("/presenceHub");
 app.MapHub<GameServerHub>("/gameServerHub");
-app.MapHub<ServerLogHub>("/serverLogHub"); // <-- ADDED MAPPING FOR ServerLogHub
+app.MapHub<ServerLogHub>("/serverLogHub");
 
 app.Run();

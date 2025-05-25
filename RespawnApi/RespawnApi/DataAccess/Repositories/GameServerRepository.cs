@@ -1,13 +1,8 @@
-﻿// DataAccess/Repositories/GameServerRepository.cs
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using RespawnApi.Data;
 using RespawnApi.Domain.Entities;
 using RespawnApi.Domain.Enums;
 using RespawnApi.DataAccess.Interfaces;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace RespawnApi.DataAccess.Repositories
 {
@@ -27,20 +22,27 @@ namespace RespawnApi.DataAccess.Repositories
 
         public async Task<IEnumerable<GameServer>> GetAllAsync()
         {
-            return await _context.GameServers.AsNoTracking().ToListAsync(); // Přidáno AsNoTracking pro operace pouze pro čtení
+            return await _context.GameServers.AsNoTracking().ToListAsync();
         }
 
         public async Task AddAsync(GameServer gameServer)
         {
-            if (gameServer == null) throw new ArgumentNullException(nameof(gameServer));
+            if (gameServer == null)
+            {
+                throw new ArgumentNullException(nameof(gameServer));
+            }
+
             await _context.GameServers.AddAsync(gameServer);
             await _context.SaveChangesAsync();
         }
 
         public async Task UpdateAsync(GameServer gameServer)
         {
-            if (gameServer == null) throw new ArgumentNullException(nameof(gameServer));
-            // Ujistěte se, že entita je sledována, pokud byla načtena v jiném kontextu nebo AsNoTracking
+            if (gameServer == null)
+            {
+                throw new ArgumentNullException(nameof(gameServer));
+            }
+
             var existingServer = await _context.GameServers.FindAsync(gameServer.GameServerId);
             if (existingServer != null)
             {
@@ -48,30 +50,33 @@ namespace RespawnApi.DataAccess.Repositories
             }
             else
             {
-                _context.GameServers.Update(gameServer); // Pokud není sledována, Update ji začne sledovat jako Modified
+                _context.GameServers.Update(gameServer); // if it was not found, update it
             }
+
             await _context.SaveChangesAsync();
         }
 
         public async Task DeleteAsync(Guid gameServerId)
         {
-            var gameServer = await GetByIdAsync(gameServerId); // Použije sledovanou entitu, pokud je to možné
+            var gameServer = await GetByIdAsync(gameServerId); // use GetByIdAsync to ensure we have the entity
             if (gameServer != null)
             {
                 _context.GameServers.Remove(gameServer);
                 await _context.SaveChangesAsync();
             }
         }
+
         public async Task<IEnumerable<GameServer>> GetServersByStatusesAsync(IEnumerable<ServerStatus> statuses)
         {
             if (statuses == null || !statuses.Any())
             {
                 return Enumerable.Empty<GameServer>();
             }
+
             return await _context.GameServers
-                                 .Where(s => statuses.Contains(s.Status))
-                                 .AsNoTracking() // Přidáno AsNoTracking
-                                 .ToListAsync();
+                .Where(s => statuses.Contains(s.Status))
+                .AsNoTracking() // Přidáno AsNoTracking
+                .ToListAsync();
         }
     }
 }

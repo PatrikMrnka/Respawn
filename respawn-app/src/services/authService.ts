@@ -1,9 +1,14 @@
-// src/services/authService.ts
 import Swal, { type SweetAlertOptions } from 'sweetalert2'
 import { useAuthStore } from '@/stores/authStore'
 
-const API_BASE_URL = 'http://localhost:5207/api/auth'
+// Base URL for authentication API endpoints
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL + '/api/auth'
 
+/**
+ * Returns customized SweetAlert2 options with futuristic styling
+ * @param title - The title to display in the alert
+ * @returns SweetAlertOptions configuration object
+ */
 const getFuturisticSwalOptions = (title: string): SweetAlertOptions => {
   return {
     titleText: title,
@@ -27,6 +32,9 @@ const getFuturisticSwalOptions = (title: string): SweetAlertOptions => {
   }
 }
 
+/**
+ * Interface for the authentication response from the API
+ */
 interface AuthResponse {
   token: string
   isSuccess: boolean
@@ -41,6 +49,10 @@ interface AuthResponse {
   expiresAt: string
 }
 
+/**
+ * Displays a login modal and handles the authentication process
+ * @returns Object with success status and user nickname if login was successful
+ */
 export const displayLoginModal = async (): Promise<{
   success: boolean
   nickname?: string
@@ -64,6 +76,7 @@ export const displayLoginModal = async (): Promise<{
     cancelButtonText: 'Zrušit',
     allowOutsideClick: () => !Swal.isLoading(),
     showLoaderOnConfirm: true,
+    // Set up input focus and Enter key handling for form inputs
     didOpen: () => {
       const nicknameInput = document.getElementById('swal-nickname') as HTMLInputElement
       const passwordInput = document.getElementById('swal-password') as HTMLInputElement
@@ -80,6 +93,7 @@ export const displayLoginModal = async (): Promise<{
         })
       })
     },
+    // Validate form data and send login request to API
     preConfirm: async () => {
       const nicknameInput = document.getElementById('swal-nickname') as HTMLInputElement
       const passwordInput = document.getElementById('swal-password') as HTMLInputElement
@@ -114,6 +128,7 @@ export const displayLoginModal = async (): Promise<{
     },
   })
 
+  // Handle successful login by storing auth data and showing success message
   if (isConfirmed && formValues) {
     const authData = formValues as AuthResponse
     authStore.setAuthData(authData.token, authData.userInfo, authData.expiresAt)
@@ -129,6 +144,10 @@ export const displayLoginModal = async (): Promise<{
   return null
 }
 
+/**
+ * Displays a registration modal and handles the user registration process
+ * @returns Object with success status and user nickname if registration was successful
+ */
 export const displayRegisterModal = async (): Promise<{
   success: boolean
   nickname?: string
@@ -158,6 +177,7 @@ export const displayRegisterModal = async (): Promise<{
     cancelButtonText: 'Zrušit',
     allowOutsideClick: () => !Swal.isLoading(),
     showLoaderOnConfirm: true,
+    // Set up input focus and Enter key handling for form inputs
     didOpen: () => {
       const nicknameInput = document.getElementById('swal-reg-nickname') as HTMLInputElement
       const emailInput = document.getElementById('swal-reg-email') as HTMLInputElement
@@ -178,6 +198,7 @@ export const displayRegisterModal = async (): Promise<{
         })
       })
     },
+    // Validate registration data, perform client-side validation, and send request to API
     preConfirm: async () => {
       const nicknameInput = document.getElementById('swal-reg-nickname') as HTMLInputElement
       const emailInput = document.getElementById('swal-reg-email') as HTMLInputElement
@@ -199,21 +220,19 @@ export const displayRegisterModal = async (): Promise<{
         Swal.showValidationMessage('Prosim, vyplnte vsechna pole')
         return false
       }
-      // Validace hesla na frontendu (základní)
+      // Basic client-side password validation
       if (password.length < 5) {
-        Swal.showValidationMessage('Heslo musi mit alespon 5 znaku.');
-        return false;
+        Swal.showValidationMessage('Heslo musi mit alespon 5 znaku.')
+        return false
       }
       if (!/\d/.test(password)) {
-        Swal.showValidationMessage('Heslo musi obsahovat alespon jednu cislici.');
-        return false;
+        Swal.showValidationMessage('Heslo musi obsahovat alespon jednu cislici.')
+        return false
       }
       if (!/[a-z]/.test(password)) {
-        Swal.showValidationMessage('Heslo musi obsahovat alespon jedno male pismeno.');
-        return false;
+        Swal.showValidationMessage('Heslo musi obsahovat alespon jedno male pismeno.')
+        return false
       }
-      // Odebráno: if (/[A-Z]/.test(password)) - velké písmeno není vyžadováno
-      // Odebráno: if (/\W/.test(password)) - speciální znak není vyžadován
 
       if (password !== confirmPassword) {
         Swal.showValidationMessage('Hesla se neshoduji')
@@ -223,7 +242,7 @@ export const displayRegisterModal = async (): Promise<{
         return false
       }
 
-
+      // Send registration request to API
       try {
         const response = await fetch(`${API_BASE_URL}/register`, {
           method: 'POST',
@@ -244,10 +263,10 @@ export const displayRegisterModal = async (): Promise<{
     },
   })
 
+  // Handle successful registration by storing auth data and showing success message
   if (isConfirmed && formValues) {
     const authData = formValues as AuthResponse
     if (authData.token && authData.userInfo) {
-      // Po úspěšné registraci se uživatel rovnou přihlásí
       authStore.setAuthData(authData.token, authData.userInfo, authData.expiresAt)
     }
     Swal.fire({
@@ -261,4 +280,3 @@ export const displayRegisterModal = async (): Promise<{
   }
   return null
 }
-

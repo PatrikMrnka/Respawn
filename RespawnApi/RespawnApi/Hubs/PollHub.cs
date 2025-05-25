@@ -1,27 +1,29 @@
-﻿// Hubs/PollHub.cs
-using Microsoft.AspNetCore.SignalR;
-using System.Threading.Tasks;
-using RespawnApi.Application.DTOs.Polls; // Pro PollDto
+﻿using Microsoft.AspNetCore.SignalR;
+using RespawnApi.Application.DTOs.Polls;
 
 namespace RespawnApi.Hubs
 {
-    // Tento Hub bude sloužit k odesílání aktualizací anket klientům.
-    // Prozatím nebude mít žádné metody volatelné klienty,
-    // pouze metody, které bude volat server pro odeslání zpráv.
+    /// <summary>
+    /// SignalR hub for managing real-time poll updates and notifications.
+    /// </summary>
     public class PollHub : Hub
     {
-        // Metoda, kterou může server volat k odeslání aktualizované ankety všem klientům.
-        // Klienti budou naslouchat na událost "ReceivePollUpdate".
+        /// <summary>
+        /// Broadcasts an updated poll to all connected clients.
+        /// </summary>
+        /// <param name="poll">The updated poll data to send.</param>
         public async Task BroadcastPollUpdate(PollDto poll)
         {
-            if (Clients != null) // Kontrola pro jistotu
+            if (Clients != null)
             {
                 await Clients.All.SendAsync("ReceivePollUpdate", poll);
             }
         }
 
-        // Metoda, kterou může server volat k odeslání informace o smazané anketě.
-        // Klienti budou naslouchat na událost "ReceivePollDelete".
+        /// <summary>
+        /// Notifies all clients that a poll has been deleted.
+        /// </summary>
+        /// <param name="pollId">The ID of the deleted poll.</param>
         public async Task BroadcastPollDelete(string pollId)
         {
             if (Clients != null)
@@ -30,8 +32,10 @@ namespace RespawnApi.Hubs
             }
         }
 
-        // Metoda pro odeslání informace, že hlas byl úspěšně zaznamenán a anketa byla aktualizována
-        // (např. pro aktualizaci počtu hlasů a userVotedOptionIds u ostatních klientů)
+        /// <summary>
+        /// Broadcasts a vote submission event to all clients with the updated poll data.
+        /// </summary>
+        /// <param name="updatedPoll">The poll data after a vote has been submitted.</param>
         public async Task BroadcastVoteSubmitted(PollDto updatedPoll)
         {
             if (Clients != null)
@@ -39,17 +43,5 @@ namespace RespawnApi.Hubs
                 await Clients.All.SendAsync("ReceiveVoteUpdate", updatedPoll);
             }
         }
-
-
-        // Příklad, jak by mohlo vypadat připojení ke skupině pro konkrétní anketu (pokročilejší)
-        // public async Task JoinPollGroup(string pollId)
-        // {
-        //     await Groups.AddToGroupAsync(Context.ConnectionId, $"poll-{pollId}");
-        // }
-
-        // public async Task LeavePollGroup(string pollId)
-        // {
-        //     await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"poll-{pollId}");
-        // }
     }
 }

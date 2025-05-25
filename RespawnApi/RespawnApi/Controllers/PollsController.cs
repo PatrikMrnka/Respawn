@@ -1,64 +1,69 @@
-﻿// Controllers/PollsController.cs
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
 using RespawnApi.Application.DTOs.Polls;
-using RespawnApi.Data;
 using RespawnApi.Domain.Entities;
 using RespawnApi.Domain.Enums;
 using RespawnApi.Hubs;
+using RespawnApi.DataAccess.Interfaces;
 using System.Security.Claims;
 
 namespace RespawnApi.Controllers
 {
+    /// <summary>
+    /// API controller for managing polls.
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize]
+    [Authorize] // All actions require authentication by default
     public class PollsController : ControllerBase
     {
-        private readonly RespawnDbContext _context;
+        private readonly IPollRepository _pollRepository;
         private readonly UserManager<IdentityUser> _userManager;
         private readonly ILogger<PollsController> _logger;
         private readonly IHubContext<PollHub> _pollHubContext;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="PollsController"/> class.
+        /// </summary>
+        /// <param name="pollRepository">The poll repository for data access.</param>
+        /// <param name="userManager">ASP.NET Core Identity UserManager.</param>
+        /// <param name="logger">Logger for this controller.</param>
+        /// <param name="pollHubContext">SignalR hub context for poll updates.</param>
         public PollsController(
-            RespawnDbContext context,
+            IPollRepository pollRepository,
             UserManager<IdentityUser> userManager,
             ILogger<PollsController> logger,
             IHubContext<PollHub> pollHubContext)
         {
-            _context = context;
+            _pollRepository = pollRepository;
             _userManager = userManager;
             _logger = logger;
             _pollHubContext = pollHubContext;
         }
 
-        private async Task<PollDto> MapPollToDto(Poll poll, string? currentUserId)
+        /// <summary>
+        /// Maps a Poll entity to a PollDto, including user-specific vote information.
+        /// </summary>
+        /// <param name="poll">The Poll entity.</param>
+        /// <param name="currentUserId">The ID of the current user, or null if no user context.</param>
+        /// <returns>A PollDto.</returns>
+        private PollDto MapPollToDto(Poll poll, string? currentUserId)
         {
-            // Zajistíme, že navigační vlastnosti jsou načteny, pokud ještě nejsou
-            if (poll.Creator == null && !string.IsNullOrEmpty(poll.CreatorUserId))
+            if (poll == null)
             {
-                poll.Creator = await _context.UserProfiles.FindAsync(poll.CreatorUserId);
+                _logger.LogError("MapPollToDto received a null Poll entity.");
+                throw new ArgumentNullException(nameof(poll), "Cannot map a null Poll entity.");
             }
-            if (!poll.PollOptions.Any() && _context.Entry(poll).Collection(p => p.PollOptions).IsLoaded == false)
-            {
-                await _context.Entry(poll).Collection(p => p.PollOptions).LoadAsync();
-            }
-            if (!poll.PollVotes.Any() && _context.Entry(poll).Collection(p => p.PollVotes).IsLoaded == false)
-            {
-                await _context.Entry(poll).Collection(p => p.PollVotes).LoadAsync();
-            }
-
 
             var userVotesForThisPoll = new List<string>();
-            if (!string.IsNullOrEmpty(currentUserId)) // Pouze pokud máme ID konkrétního uživatele
+            if (!string.IsNullOrEmpty(currentUserId) && poll.PollVotes != null)
             {
                 userVotesForThisPoll = poll.PollVotes
-                                          .Where(pv => pv.UserId == currentUserId)
-                                          .Select(pv => pv.OptionId)
-                                          .ToList();
+                    .Where(pv => pv.UserId == currentUserId)
+                    .Select(pv => pv.OptionId)
+                    .ToList();
             }
 
             return new PollDto
@@ -66,151 +71,173 @@ namespace RespawnApi.Controllers
                 PollId = poll.PollId,
                 Question = poll.Question,
                 EndTime = poll.EndTime,
-                IsClosed = poll.IsClosed || poll.EndTime <= DateTime.UtcNow,
+                IsClosed = poll.IsClosed || (poll.EndTime <= DateTime.UtcNow),
                 ImageUrl = poll.ImageUrl,
                 CreatorUserId = poll.CreatorUserId,
                 CreatorNickname = poll.Creator?.Nickname ?? "Neznámý",
                 IsMultipleChoice = poll.IsMultipleChoice,
-                Options = poll.PollOptions.Select(opt => new PollOptionDto
+                Options = poll.PollOptions?.Select(opt => new PollOptionDto
                 {
                     OptionId = opt.OptionId,
                     Text = opt.Text,
                     ImageUrl = opt.ImageUrl,
-                    VoteCount = poll.PollVotes.Count(v => v.OptionId == opt.OptionId)
-                }).ToList(),
-                UserVotedOptionIds = userVotesForThisPoll, // Bude prázdné, pokud currentUserId je null
-                TotalVotes = poll.PollVotes.Count
+                    VoteCount = poll.PollVotes?.Count(v => v.OptionId == opt.OptionId) ?? 0
+                }).ToList() ?? new List<PollOptionDto>(),
+                UserVotedOptionIds = userVotesForThisPoll,
+                TotalVotes = poll.PollVotes?.Count ?? 0
             };
         }
 
-        // GET: api/polls
+        /// <summary>
+        /// Retrieves all polls.
+        /// </summary>
+        /// <returns>A list of all polls.</returns>
         [HttpGet]
         public async Task<ActionResult<IEnumerable<PollDto>>> GetPolls()
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var pollsFromDb = await _context.Polls
-                .Include(p => p.Creator)
-                .Include(p => p.PollOptions)
-                .Include(p => p.PollVotes)
-                .OrderByDescending(p => p.EndTime)
-                .ToListAsync();
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            _logger.LogInformation("User {UserId} retrieving all polls.", currentUserId ?? "Anonymous");
 
-            var pollDtos = new List<PollDto>();
-            foreach (var poll in pollsFromDb)
-            {
-                pollDtos.Add(await MapPollToDto(poll, userId));
-            }
+            var pollsFromDb = await _pollRepository.GetAllAsync(currentUserId);
+
+            var pollDtos = pollsFromDb.Select(p => MapPollToDto(p, currentUserId)).ToList();
+
+            // Sort on the client-side DTOs after mapping
             return Ok(pollDtos.OrderBy(p => p.IsClosed).ThenByDescending(p => p.EndTime).ToList());
         }
 
-        // GET: api/polls/{id}
+        /// <summary>
+        /// Retrieves a specific poll by its ID.
+        /// </summary>
+        /// <param name="id">The ID of the poll to retrieve.</param>
+        /// <returns>The requested poll or NotFound.</returns>
         [HttpGet("{id}")]
         public async Task<ActionResult<PollDto>> GetPoll(string id)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var poll = await _context.Polls
-                .Include(p => p.Creator)
-                .Include(p => p.PollOptions)
-                .Include(p => p.PollVotes)
-                .FirstOrDefaultAsync(p => p.PollId == id);
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            _logger.LogInformation("User {UserId} retrieving poll with ID: {PollId}.", currentUserId ?? "Anonymous",
+                id);
+
+            var poll = await _pollRepository.GetByIdAsync(id, currentUserId);
 
             if (poll == null)
             {
+                _logger.LogWarning("Poll with ID {PollId} not found.", id);
                 return NotFound(new { message = "Anketa nebyla nalezena." });
             }
 
-            bool stateChanged = false;
-            if (!poll.IsClosed && poll.EndTime <= DateTime.UtcNow)
+            bool stateChangedDueToExpiry = false;
+            if (!poll.IsClosed && (poll.EndTime <= DateTime.UtcNow))
             {
+                _logger.LogInformation("Poll {PollId} found to be expired. Marking as closed.", poll.PollId);
                 poll.IsClosed = true;
-                _context.Update(poll);
-                await _context.SaveChangesAsync();
-                stateChanged = true;
-                _logger.LogInformation("Anketa {PollId} byla automaticky uzavřena při načítání detailu.", poll.PollId);
+                await _pollRepository.UpdateAsync(poll);
+                await _pollRepository.SaveChangesAsync(); // Commit the change
+                stateChangedDueToExpiry = true;
             }
 
-            var pollDtoToReturn = await MapPollToDto(poll, userId); // Pro HTTP odpověď
+            var pollDtoToReturn = MapPollToDto(poll, currentUserId);
 
-            if (stateChanged) // Pokud se stav změnil, pošleme update všem
+            if (stateChangedDueToExpiry)
             {
-                var broadcastDto = await MapPollToDto(poll, null); // Generic DTO pro broadcast
-                await _pollHubContext.Clients.All.SendAsync("ReceivePollUpdate", broadcastDto);
+                _logger.LogInformation("Broadcasting update for automatically closed poll {PollId}.", poll.PollId);
+                var pollDtoForBroadcast = MapPollToDto(poll, null); // Null user ID for generic broadcast DTO
+                await _pollHubContext.Clients.All.SendAsync("ReceivePollUpdate", pollDtoForBroadcast);
             }
 
             return Ok(pollDtoToReturn);
         }
 
-        // POST: api/polls
+        /// <summary>
+        /// Creates a new poll.
+        /// </summary>
+        /// <param name="createPollDto">The data for the new poll.</param>
+        /// <returns>The created poll.</returns>
         [HttpPost]
+        [Authorize(Roles = $"{UserRoles.Administrator},{UserRoles.Spravce}")] // Only Admins/Managers can create
         public async Task<ActionResult<PollDto>> CreatePoll(CreatePollDto createPollDto)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userId))
+            var creatorUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(creatorUserId))
             {
                 return Unauthorized(new { message = "Pro vytvoření ankety musíte být přihlášeni." });
             }
+
+            _logger.LogInformation("User {UserId} attempting to create a new poll: {Question}", creatorUserId,
+                createPollDto.Question);
+
             if (createPollDto.EndTime <= DateTime.UtcNow)
             {
                 ModelState.AddModelError(nameof(createPollDto.EndTime), "Čas ukončení ankety musí být v budoucnosti.");
             }
-            if (createPollDto.Options.Count < 2)
+
+            if (createPollDto.Options == null || createPollDto.Options.Count < 2)
             {
                 ModelState.AddModelError(nameof(createPollDto.Options), "Anketa musí mít alespoň dvě možnosti.");
             }
+
             if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
             }
 
-            var poll = new Poll
+            var pollEntity = new Poll
             {
+                PollId = Guid.NewGuid().ToString(),
                 Question = createPollDto.Question,
                 EndTime = createPollDto.EndTime,
                 ImageUrl = createPollDto.ImageUrl,
-                CreatorUserId = userId,
+                CreatorUserId = creatorUserId,
                 IsMultipleChoice = createPollDto.IsMultipleChoice,
-                PollOptions = createPollDto.Options.Select(optDto => new PollOption
+                IsClosed = false,
+                PollOptions = (createPollDto.Options ?? new List<CreatePollOptionDto>()).Select(optDto => new PollOption
                 {
+                    OptionId = Guid.NewGuid().ToString(),
                     Text = optDto.Text,
                     ImageUrl = optDto.ImageUrl
                 }).ToList()
             };
 
-            _context.Polls.Add(poll);
-            await _context.SaveChangesAsync();
-            _logger.LogInformation("Uživatel {UserId} vytvořil anketu {PollId}", userId, poll.PollId);
+            var addedPoll = await _pollRepository.AddAsync(pollEntity);
+            await _pollRepository.SaveChangesAsync();
+            _logger.LogInformation("User {UserId} created poll {PollId}.", creatorUserId, addedPoll.PollId);
 
-            var createdPollWithIncludes = await _context.Polls
-                .Include(p => p.Creator)
-                .Include(p => p.PollOptions)
-                .Include(p => p.PollVotes)
-                .AsNoTracking() // Důležité po SaveChanges, pokud chceme ihned mapovat
-                .FirstAsync(p => p.PollId == poll.PollId);
+            // Fetch the complete entity with includes for DTO mapping and broadcast
+            var createdPollWithIncludes = await _pollRepository.GetByIdAsync(addedPoll.PollId, creatorUserId);
+            if (createdPollWithIncludes == null)
+            {
+                _logger.LogError("Failed to retrieve newly created poll {PollId} with includes.", addedPoll.PollId);
+                return StatusCode(500, "Chyba při načítání vytvořené ankety.");
+            }
 
-            var pollDtoForResponse = await MapPollToDto(createdPollWithIncludes, userId); // Pro HTTP odpověď tvůrci
-            var pollDtoForBroadcast = await MapPollToDto(createdPollWithIncludes, null); // Obecné pro ostatní
+
+            var pollDtoForResponse = MapPollToDto(createdPollWithIncludes, creatorUserId);
+            var pollDtoForBroadcast = MapPollToDto(createdPollWithIncludes, null); // Generic DTO for broadcast
 
             await _pollHubContext.Clients.All.SendAsync("ReceivePollUpdate", pollDtoForBroadcast);
 
-            return CreatedAtAction(nameof(GetPoll), new { id = poll.PollId }, pollDtoForResponse);
+            return CreatedAtAction(nameof(GetPoll), new { id = addedPoll.PollId }, pollDtoForResponse);
         }
 
-        // PUT: api/polls/{id}
+        /// <summary>
+        /// Updates an existing poll.
+        /// </summary>
+        /// <param name="id">The ID of the poll to update.</param>
+        /// <param name="updatePollDto">The updated poll data.</param>
+        /// <returns>The updated poll or relevant error response.</returns>
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdatePoll(string id, UpdatePollDto updatePollDto)
         {
-            var poll = await _context.Polls
-                .Include(p => p.PollOptions)
-                .Include(p => p.PollVotes)
-                .Include(p => p.Creator)
-                .FirstOrDefaultAsync(p => p.PollId == id);
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            _logger.LogInformation("User {UserId} attempting to update poll {PollId}.", currentUserId, id);
+
+            var poll = await _pollRepository.GetByIdAsync(id, currentUserId);
 
             if (poll == null)
             {
                 return NotFound(new { message = "Anketa nebyla nalezena." });
             }
 
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             bool isAdmin = User.IsInRole(UserRoles.Administrator);
             bool isManager = User.IsInRole(UserRoles.Spravce);
             bool canManageFully = isAdmin || isManager;
@@ -218,147 +245,152 @@ namespace RespawnApi.Controllers
 
             if (!isCreator && !canManageFully)
             {
+                _logger.LogWarning("User {UserId} forbidden to update poll {PollId}.", currentUserId, id);
                 return Forbid();
             }
 
             bool optionsActuallyChanged = OptionsHaveChanged(poll.PollOptions, updatePollDto.Options);
-            if (optionsActuallyChanged && poll.PollVotes.Any()) // Úprava možností u ankety s hlasy je zakázána
+            if (optionsActuallyChanged && poll.PollVotes.Any())
             {
                 return BadRequest(new { message = "Změna možností u ankety s existujícími hlasy není povolena." });
             }
 
-            if (poll.IsClosed && updatePollDto.EndTime > DateTime.UtcNow && !canManageFully)
-            {
-                return BadRequest(new { message = "Nelze znovu otevřít již uzavřenou anketu změnou času." });
-            }
-
-            bool wasPreviouslyOpen = !poll.IsClosed && poll.EndTime > DateTime.UtcNow;
-            bool isNowClosing = updatePollDto.EndTime <= DateTime.UtcNow;
-
-            if (wasPreviouslyOpen && isNowClosing)
-            {
-                poll.IsClosed = true;
-            }
-            else if (updatePollDto.EndTime > DateTime.UtcNow)
-            {
-                if (canManageFully) poll.IsClosed = false;
-                else if (poll.IsClosed) return BadRequest(new { message = "Běžný uživatel nemůže znovu otevřít uzavřenou anketu." });
-            }
+            bool wasPreviouslyOpenAndActive = !poll.IsClosed && (poll.EndTime > DateTime.UtcNow);
+            bool isNowClosingByTime = updatePollDto.EndTime <= DateTime.UtcNow;
 
             poll.Question = updatePollDto.Question;
             poll.EndTime = updatePollDto.EndTime;
             poll.ImageUrl = updatePollDto.ImageUrl;
 
+            if (wasPreviouslyOpenAndActive && isNowClosingByTime)
+            {
+                poll.IsClosed = true;
+            }
+            else if (updatePollDto.EndTime > DateTime.UtcNow)
+            {
+                // If admin/manager is setting a future end time, ensure it's open
+                if (canManageFully)
+                {
+                    poll.IsClosed = false;
+                }
+                // If creator is setting a future end time for an already closed poll, it's not allowed unless admin/manager
+                else if (poll.IsClosed)
+                    return BadRequest(new
+                        { message = "Běžný uživatel nemůže znovu otevřít uzavřenou anketu změnou času." });
+            }
+
             if (optionsActuallyChanged && !poll.PollVotes.Any())
             {
-                var optionsToRemove = poll.PollOptions
-                    .Where(existingOpt => !updatePollDto.Options.Any(dtoOpt => dtoOpt.OptionId == existingOpt.OptionId))
-                    .ToList();
-                if (optionsToRemove.Any()) _context.PollOptions.RemoveRange(optionsToRemove);
-
-                foreach (var dtoOption in updatePollDto.Options)
+                poll.PollOptions.Clear();
+                foreach (var optDto in updatePollDto.Options)
                 {
-                    if (!string.IsNullOrEmpty(dtoOption.OptionId))
+                    poll.PollOptions.Add(new PollOption
                     {
-                        var existingOption = poll.PollOptions.FirstOrDefault(opt => opt.OptionId == dtoOption.OptionId);
-                        if (existingOption != null)
-                        {
-                            existingOption.Text = dtoOption.Text;
-                            existingOption.ImageUrl = dtoOption.ImageUrl;
-                            _context.PollOptions.Update(existingOption);
-                        }
-                    }
-                    else
-                    {
-                        poll.PollOptions.Add(new PollOption
-                        {
-                            PollId = poll.PollId,
-                            Text = dtoOption.Text,
-                            ImageUrl = dtoOption.ImageUrl
-                        });
-                    }
+                        OptionId = string.IsNullOrEmpty(optDto.OptionId) ? Guid.NewGuid().ToString() : optDto.OptionId,
+                        PollId = poll.PollId,
+                        Text = optDto.Text,
+                        ImageUrl = optDto.ImageUrl
+                    });
                 }
             }
 
-            try
-            {
-                _context.Update(poll);
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("Anketa {PollId} byla aktualizována uživatelem {UserId}", id, currentUserId);
+            await _pollRepository.UpdateAsync(poll);
+            await _pollRepository.SaveChangesAsync();
+            _logger.LogInformation("Poll {PollId} updated by user {UserId}.", id, currentUserId);
 
-                // Načtení finální entity pro DTO po všech změnách
-                var finalPollEntity = await _context.Polls
-                    .Include(p => p.Creator).Include(p => p.PollOptions).Include(p => p.PollVotes)
-                    .AsNoTracking().FirstOrDefaultAsync(p => p.PollId == id);
+            var updatedPollWithIncludes = await _pollRepository.GetByIdAsync(id, currentUserId);
+            if (updatedPollWithIncludes == null)
+                return NotFound(new { message = "Anketa nebyla nalezena po uložení." });
 
-                if (finalPollEntity == null) return NotFound(new { message = "Anketa nebyla nalezena po uložení." });
+            var pollDtoForResponse = MapPollToDto(updatedPollWithIncludes, currentUserId);
+            var pollDtoForBroadcast = MapPollToDto(updatedPollWithIncludes, null);
+            await _pollHubContext.Clients.All.SendAsync("ReceivePollUpdate", pollDtoForBroadcast);
 
-
-                var pollDtoForResponse = await MapPollToDto(finalPollEntity, currentUserId);
-                var pollDtoForBroadcast = await MapPollToDto(finalPollEntity, null);
-
-                await _pollHubContext.Clients.All.SendAsync("ReceivePollUpdate", pollDtoForBroadcast);
-                return Ok(pollDtoForResponse);
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!_context.Polls.Any(e => e.PollId == id)) return NotFound(new { message = "Anketa mezitím byla smazána." });
-                else
-                {
-                    _logger.LogError("Chyba souběhu při aktualizaci ankety {PollId}", id);
-                    return Conflict(new { message = "Došlo ke konfliktu při úpravě ankety, zkuste to prosím znovu." });
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Neočekávaná chyba při aktualizaci ankety {PollId}", id);
-                return StatusCode(500, new { message = "Interní chyba serveru při aktualizaci ankety." });
-            }
+            return Ok(pollDtoForResponse);
         }
 
-        private bool OptionsHaveChanged(ICollection<PollOption> existingOptions, List<UpdatePollOptionDto> newOptionsDto)
+        /// <summary>
+        /// Helper to check if poll options have substantially changed.
+        /// </summary>
+        private bool OptionsHaveChanged(ICollection<PollOption> existingOptions,
+            List<UpdatePollOptionDto> newOptionsDto)
         {
             if (existingOptions.Count != newOptionsDto.Count) return true;
-            var existingOptionsDict = existingOptions.ToDictionary(o => o.OptionId);
-            foreach (var dtoOpt in newOptionsDto)
+
+            var existingOptionsProcessed = existingOptions.OrderBy(o => o.OptionId).ToList();
+            var newOptionsDtoProcessed = newOptionsDto
+                .Select(dto => new { dto.OptionId, dto.Text, dto.ImageUrl }) // Select relevant fields for comparison
+                .OrderBy(o => o.OptionId) // Order by ID if present, otherwise order might be unstable
+                .ToList();
+
+            for (int i = 0; i < existingOptionsProcessed.Count; i++)
             {
-                if (string.IsNullOrEmpty(dtoOpt.OptionId)) return true;
-                if (!existingOptionsDict.TryGetValue(dtoOpt.OptionId, out var existingOpt)) return true;
-                if (existingOpt.Text != dtoOpt.Text || existingOpt.ImageUrl != dtoOpt.ImageUrl) return true;
+                var existing = existingOptionsProcessed[i];
+                var updated = newOptionsDtoProcessed[i];
+
+                // If new option has no ID, it's considered a change (likely replacing all options)
+                if (string.IsNullOrEmpty(updated.OptionId))
+                {
+                    return true;
+                }
+
+                // If IDs don't match at the same position (after sorting), it's a change
+                if (existing.OptionId != updated.OptionId)
+                {
+                    return true;
+                }
+
+                // If text or image URL changed for an existing option
+                if (existing.Text != updated.Text || existing.ImageUrl != updated.ImageUrl)
+                {
+                    return true;
+                }
             }
+
             return false;
         }
 
-        // DELETE: api/polls/{id}
+        /// <summary>
+        /// Deletes a specific poll.
+        /// </summary>
+        /// <param name="id">The ID of the poll to delete.</param>
         [HttpDelete("{id}")]
+        [Authorize(Roles =
+            $"{UserRoles.Administrator},{UserRoles.Spravce},{UserRoles.Uzivatel}")] // Allow creator to delete
         public async Task<IActionResult> DeletePoll(string id)
         {
-            var poll = await _context.Polls.FindAsync(id);
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            _logger.LogInformation("User {UserId} attempting to delete poll {PollId}.", currentUserId, id);
+
+            var poll = await _pollRepository.GetByIdAsync(id); // No need for user votes here
             if (poll == null)
             {
                 return NotFound(new { message = "Anketa nebyla nalezena." });
             }
 
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             bool isAdmin = User.IsInRole(UserRoles.Administrator);
             bool isManager = User.IsInRole(UserRoles.Spravce);
 
             if (poll.CreatorUserId != currentUserId && !isAdmin && !isManager)
             {
+                _logger.LogWarning("User {UserId} forbidden to delete poll {PollId} (not creator or admin/manager).",
+                    currentUserId, id);
                 return Forbid();
             }
 
-            string pollIdToDelete = poll.PollId;
-            _context.Polls.Remove(poll);
-            await _context.SaveChangesAsync();
-            _logger.LogInformation("Anketa {PollId} byla smazána uživatelem {UserId}", id, currentUserId);
+            await _pollRepository.DeleteAsync(id);
+            await _pollRepository.SaveChangesAsync();
+            _logger.LogInformation("Poll {PollId} deleted by user {UserId}.", id, currentUserId);
 
-            await _pollHubContext.Clients.All.SendAsync("ReceivePollDelete", pollIdToDelete);
-
+            await _pollHubContext.Clients.All.SendAsync("ReceivePollDelete", id);
             return NoContent();
         }
 
-        // POST: api/polls/{pollId}/vote
+        /// <summary>
+        /// Submits a vote for a poll.
+        /// </summary>
+        /// <param name="pollId">The ID of the poll.</param>
+        /// <param name="submitVoteDto">The DTO containing selected option IDs.</param>
         [HttpPost("{pollId}/vote")]
         public async Task<ActionResult<PollDto>> SubmitVote(string pollId, SubmitVoteDto submitVoteDto)
         {
@@ -368,30 +400,34 @@ namespace RespawnApi.Controllers
                 return Unauthorized(new { message = "Pro hlasování musíte být přihlášeni." });
             }
 
-            var poll = await _context.Polls
-                .Include(p => p.PollOptions)
-                .Include(p => p.PollVotes)
-                .Include(p => p.Creator)
-                .FirstOrDefaultAsync(p => p.PollId == pollId);
+            _logger.LogInformation("User {UserId} attempting to vote in poll {PollId} for options: {OptionIds}",
+                userId, pollId, string.Join(",", submitVoteDto.OptionIds));
 
+            var poll = await _pollRepository.GetByIdAsync(pollId, userId);
             if (poll == null)
             {
                 return NotFound(new { message = "Anketa nebyla nalezena." });
             }
 
-            bool stateChangedDueToEndTime = false;
+            bool autoClosed = false;
             if (!poll.IsClosed && poll.EndTime <= DateTime.UtcNow)
             {
                 poll.IsClosed = true;
-                _context.Update(poll);
-                stateChangedDueToEndTime = true;
+                await _pollRepository.UpdateAsync(poll); // Update IsClosed flag
+                // SaveChangesAsync will be called later after vote processing
+                autoClosed = true;
             }
 
             if (poll.IsClosed)
             {
-                if (stateChangedDueToEndTime) await _context.SaveChangesAsync();
-                _logger.LogWarning("Pokus o hlasování v uzavřené anketě {PollId} uživatelem {UserId}", pollId, userId);
+                if (autoClosed) await _pollRepository.SaveChangesAsync(); // Save the auto-close change
+                _logger.LogWarning("User {UserId} attempt to vote in closed poll {PollId}.", userId, pollId);
                 return BadRequest(new { message = "Tato anketa je již uzavřena." });
+            }
+
+            if (submitVoteDto.OptionIds == null || !submitVoteDto.OptionIds.Any())
+            {
+                return BadRequest(new { message = "Musíte vybrat alespoň jednu možnost." });
             }
 
             foreach (var optionId in submitVoteDto.OptionIds)
@@ -402,52 +438,129 @@ namespace RespawnApi.Controllers
                 }
             }
 
-            var existingVotes = await _context.PollVotes
-                                    .Where(pv => pv.PollId == pollId && pv.UserId == userId)
-                                    .ToListAsync();
-
-            if (!poll.IsMultipleChoice && existingVotes.Any() && (existingVotes.Count > 1 || (submitVoteDto.OptionIds.Any() && existingVotes.First().OptionId != submitVoteDto.OptionIds.First())))
-            {
-                return BadRequest(new { message = "V této anketě můžete hlasovat pouze jednou pro jednu možnost." });
-            }
             if (!poll.IsMultipleChoice && submitVoteDto.OptionIds.Count > 1)
             {
                 return BadRequest(new { message = "V této anketě můžete vybrat pouze jednu možnost." });
             }
 
-            _context.PollVotes.RemoveRange(existingVotes);
-
-            foreach (var optionId in submitVoteDto.OptionIds)
+            // Remove previous votes by this user for this poll
+            var existingVotes = await _pollRepository.GetUserVotesForPollAsync(pollId, userId);
+            if (existingVotes.Any())
             {
-                _context.PollVotes.Add(new PollVote
-                {
-                    PollId = pollId,
-                    OptionId = optionId,
-                    UserId = userId,
-                    TimeStamp = DateTime.UtcNow
-                });
+                await _pollRepository.RemoveVotesAsync(existingVotes);
             }
 
-            await _context.SaveChangesAsync();
-            _logger.LogInformation("Uživatel {UserId} hlasoval v anketě {PollId} pro možnosti: {OptionIds}", userId, pollId, string.Join(",", submitVoteDto.OptionIds));
+            // Add new votes
+            var newVotes = submitVoteDto.OptionIds.Select(optionId => new PollVote
+            {
+                PollId = pollId,
+                OptionId = optionId,
+                UserId = userId,
+                TimeStamp = DateTime.UtcNow
+            }).ToList();
+            await _pollRepository.AddVotesAsync(newVotes);
 
-            // Načteme znovu anketu s aktualizovanými počty hlasů a stavem userVotedOptionIds
-            // Je důležité znovu načíst, aby se promítly změny v PollVotes
-            var updatedPollAfterVote = await _context.Polls
-                .Include(p => p.Creator)
-                .Include(p => p.PollOptions)
-                .Include(p => p.PollVotes)
-                .AsNoTracking() // Pro čtení po uložení
-                .FirstOrDefaultAsync(p => p.PollId == pollId);
+            await _pollRepository
+                .SaveChangesAsync(); // Commit all changes (auto-close, remove old votes, add new votes)
+            _logger.LogInformation("User {UserId} voted in poll {PollId}.", userId, pollId);
 
-            if (updatedPollAfterVote == null) return NotFound();
+            // Fetch the updated poll with all includes for the response
+            var updatedPollEntity = await _pollRepository.GetByIdAsync(pollId, userId);
+            if (updatedPollEntity == null)
+            {
+                _logger.LogError("Failed to retrieve poll {PollId} after voting.", pollId);
+                return StatusCode(500, "Chyba při načítání ankety po hlasování.");
+            }
 
-            var pollDtoForResponse = await MapPollToDto(updatedPollAfterVote, userId); // Pro HTTP odpověď hlasujícímu
-            var pollDtoForBroadcast = await MapPollToDto(updatedPollAfterVote, null); // Obecné pro ostatní
+            var pollDtoForResponse = MapPollToDto(updatedPollEntity, userId);
+            var pollDtoForBroadcast = MapPollToDto(updatedPollEntity, null);
 
-            await _pollHubContext.Clients.All.SendAsync("ReceiveVoteUpdate", pollDtoForBroadcast);
+            await _pollHubContext.Clients.All.SendAsync("ReceiveVoteUpdate",
+                pollDtoForBroadcast); // Use the generic DTO for broadcast
+            // The frontend client that voted will also receive this and can update its state.
 
             return Ok(pollDtoForResponse);
         }
+
+        /// <summary>
+        /// Closes an active poll.
+        /// </summary>
+        /// <param name="id">The ID of the poll to close.</param>
+        [HttpPost("{id}/close")]
+        [Authorize(Roles = $"{UserRoles.Administrator},{UserRoles.Spravce},{UserRoles.Uzivatel}")] // Allow creator
+        public async Task<IActionResult> ClosePoll(string id)
+        {
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            _logger.LogInformation("User {UserId} attempting to close poll {PollId}.", currentUserId, id);
+
+            var poll = await _pollRepository.GetByIdAsync(id);
+            if (poll == null) return NotFound(new { message = "Anketa nebyla nalezena." });
+
+            bool isAdmin = User.IsInRole(UserRoles.Administrator);
+            bool isManager = User.IsInRole(UserRoles.Spravce);
+
+            if (poll.CreatorUserId != currentUserId && !isAdmin && !isManager)
+            {
+                _logger.LogWarning("User {UserId} forbidden to close poll {PollId}.", currentUserId, id);
+                return Forbid();
+            }
+
+            if (poll.IsClosed) return BadRequest(new { message = "Anketa je již uzavřena." });
+
+            poll.IsClosed = true;
+            poll.EndTime = DateTime.UtcNow;
+            await _pollRepository.UpdateAsync(poll);
+            await _pollRepository.SaveChangesAsync();
+            _logger.LogInformation("Poll {PollId} closed by user {UserId}.", id, currentUserId);
+
+            var updatedPollEntity = await _pollRepository.GetByIdAsync(id, currentUserId); // Re-fetch for DTO
+            if (updatedPollEntity == null) return StatusCode(500, "Chyba při načítání ankety po uzavření.");
+
+            var pollDtoForBroadcast = MapPollToDto(updatedPollEntity, null);
+            await _pollHubContext.Clients.All.SendAsync("ReceivePollUpdate", pollDtoForBroadcast);
+
+            return Ok(MapPollToDto(updatedPollEntity, currentUserId));
+        }
+
+        /// <summary>
+        /// Opens a closed poll.
+        /// </summary>
+        /// <param name="id">The ID of the poll to open.</param>
+        /// <param name="openPollDto">DTO containing the new end time for the poll.</param>
+        [HttpPost("{id}/open")]
+        [Authorize(Roles = $"{UserRoles.Administrator},{UserRoles.Spravce}")] // Only Admin/Manager can reopen
+        public async Task<IActionResult> OpenPoll(string id, [FromBody] OpenPollRequestDto openPollDto)
+        {
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            _logger.LogInformation("User {UserId} attempting to open poll {PollId} with new EndTime {EndTime}.",
+                currentUserId, id, openPollDto.NewEndTime);
+
+            if (openPollDto.NewEndTime <= DateTime.UtcNow)
+            {
+                return BadRequest(new { message = "Nový čas ukončení musí být v budoucnosti." });
+            }
+
+            var poll = await _pollRepository.GetByIdAsync(id);
+            if (poll == null) return NotFound(new { message = "Anketa nebyla nalezena." });
+
+            if (!poll.IsClosed) return BadRequest(new { message = "Anketa není uzavřena." });
+
+            poll.IsClosed = false;
+            poll.EndTime = openPollDto.NewEndTime; // Set new end time
+            await _pollRepository.UpdateAsync(poll);
+            await _pollRepository.SaveChangesAsync();
+            _logger.LogInformation("Poll {PollId} re-opened by user {UserId} until {NewEndTime}.", id, currentUserId,
+                poll.EndTime);
+
+            var updatedPollEntity = await _pollRepository.GetByIdAsync(id, currentUserId);
+            if (updatedPollEntity == null) return StatusCode(500, "Chyba při načítání ankety po znovuotevření.");
+
+            var pollDtoForBroadcast = MapPollToDto(updatedPollEntity, null);
+            await _pollHubContext.Clients.All.SendAsync("ReceivePollUpdate", pollDtoForBroadcast);
+
+            return Ok(MapPollToDto(updatedPollEntity, currentUserId));
+        }
     }
+
+
 }

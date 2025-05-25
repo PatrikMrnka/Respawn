@@ -10,12 +10,12 @@
           class="futuristic-btn-filled mx-2"
           color="primary"
           size="large"
-          @click="$emit('register')"
+          @click="showRegisterModal"
         >
           <v-icon left class="mr-2">{{ mdiAccountPlus }}</v-icon>
           Registrovat
         </v-btn>
-        <v-btn class="futuristic-btn mx-2" variant="outlined" size="large" @click="$emit('login')">
+        <v-btn class="futuristic-btn mx-2" variant="outlined" size="large" @click="showLoginModal">
           <v-icon left class="mr-1">{{ mdiLogin }}</v-icon>
           Přihlásit se
         </v-btn>
@@ -25,8 +25,24 @@
 </template>
 
 <script lang="ts" setup>
+import { displayLoginModal, displayRegisterModal } from '@/services/authService'
 import { mdiLogin, mdiAccountPlus } from '@mdi/js'
-defineEmits(['login', 'register'])
+
+const showLoginModal = async () => {
+  try {
+    await displayLoginModal()
+  } catch (error) {
+    console.debug('Login modal was closed or failed.', error)
+  }
+}
+
+const showRegisterModal = async () => {
+  try {
+    await displayRegisterModal()
+  } catch (error) {
+    console.debug('Register modal was closed or failed.', error)
+  }
+}
 </script>
 
 <style scoped>

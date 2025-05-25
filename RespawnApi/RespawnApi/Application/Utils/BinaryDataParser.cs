@@ -18,16 +18,26 @@ namespace RespawnApi.Application.Utils
         /// <param name="logger">Optional logger for warnings.</param>
         /// <returns>The parsed string.</returns>
         /// <exception cref="IndexOutOfRangeException">Thrown if the offset is outside the bounds of the buffer before or after reading.</exception>
-        public static string ReadNullTerminatedString(byte[] buffer, ref int offset, Encoding encoding, ILogger? logger = null)
+        public static string ReadNullTerminatedString(byte[] buffer, ref int offset, Encoding encoding,
+            ILogger? logger = null)
         {
-            if (buffer == null) throw new ArgumentNullException(nameof(buffer));
-            if (encoding == null) throw new ArgumentNullException(nameof(encoding));
-            if (offset < 0 || offset > buffer.Length) // Kontrola i pro případ, že offset je hned za koncem bufferu (pro prázdný string na konci)
-                throw new IndexOutOfRangeException($"Initial offset {offset} is out of bounds for buffer of length {buffer.Length}.");
+            if (buffer == null)
+            {
+                throw new ArgumentNullException(nameof(buffer));
+            }
+
+            if (encoding == null)
+            {
+                throw new ArgumentNullException(nameof(encoding));
+            }
+
+            if (offset < 0 || offset > buffer.Length) // Check if offset is within bounds
+                throw new IndexOutOfRangeException(
+                    $"Initial offset {offset} is out of bounds for buffer of length {buffer.Length}.");
 
             int start = offset;
             int end = offset;
-            while (end < buffer.Length && buffer[end] != 0x00)
+            while (end < buffer.Length && buffer[end] != 0x00) // find null terminator
             {
                 end++;
             }
@@ -40,10 +50,13 @@ namespace RespawnApi.Application.Utils
             }
             else // No null terminator found within buffer bounds
             {
-                logger?.LogWarning("ReadNullTerminatedString: String not null-terminated or extends beyond buffer. Offset: {Offset}, BufferLength: {Length}. Reading to end.", start, buffer.Length);
+                logger?.LogWarning(
+                    "ReadNullTerminatedString: String not null-terminated or extends beyond buffer. Offset: {Offset}, BufferLength: {Length}. Reading to end.",
+                    start, buffer.Length);
                 result = encoding.GetString(buffer, start, buffer.Length - start);
                 offset = buffer.Length; // Move offset to the end of the buffer
             }
+
             return result;
         }
 
@@ -59,7 +72,8 @@ namespace RespawnApi.Application.Utils
         {
             if (buffer == null) throw new ArgumentNullException(nameof(buffer));
             if (offset < 0 || offset >= buffer.Length)
-                throw new IndexOutOfRangeException($"Offset {offset} is out of bounds for buffer of length {buffer.Length}. Cannot read byte.");
+                throw new IndexOutOfRangeException(
+                    $"Offset {offset} is out of bounds for buffer of length {buffer.Length}. Cannot read byte.");
 
             byte result = buffer[offset];
             offset++;
@@ -76,9 +90,16 @@ namespace RespawnApi.Application.Utils
         /// <exception cref="IndexOutOfRangeException">Thrown if the offset is outside the bounds of the buffer or not enough bytes remain.</exception>
         public static short ReadInt16LittleEndian(byte[] buffer, ref int offset)
         {
-            if (buffer == null) throw new ArgumentNullException(nameof(buffer));
+            if (buffer == null)
+            {
+                throw new ArgumentNullException(nameof(buffer));
+            }
+
             if (offset < 0 || offset + 2 > buffer.Length)
-                throw new IndexOutOfRangeException($"Offset {offset} is out of bounds or not enough data for Int16 in buffer of length {buffer.Length}.");
+            {
+                throw new IndexOutOfRangeException(
+                    $"Offset {offset} is out of bounds or not enough data for Int16 in buffer of length {buffer.Length}.");
+            }
 
             short result = BitConverter.ToInt16(buffer, offset);
             offset += 2;
@@ -95,9 +116,16 @@ namespace RespawnApi.Application.Utils
         /// <exception cref="IndexOutOfRangeException">Thrown if the offset is outside the bounds of the buffer or not enough bytes remain.</exception>
         public static int ReadInt32LittleEndian(byte[] buffer, ref int offset)
         {
-            if (buffer == null) throw new ArgumentNullException(nameof(buffer));
+            if (buffer == null)
+            {
+                throw new ArgumentNullException(nameof(buffer));
+            }
+
             if (offset < 0 || offset + 4 > buffer.Length)
-                throw new IndexOutOfRangeException($"Offset {offset} is out of bounds or not enough data for Int32 in buffer of length {buffer.Length}.");
+            {
+                throw new IndexOutOfRangeException(
+                    $"Offset {offset} is out of bounds or not enough data for Int32 in buffer of length {buffer.Length}.");
+            }
 
             int result = BitConverter.ToInt32(buffer, offset);
             offset += 4;
@@ -114,9 +142,16 @@ namespace RespawnApi.Application.Utils
         /// <exception cref="IndexOutOfRangeException">Thrown if the offset is outside the bounds of the buffer or not enough bytes remain.</exception>
         public static float ReadFloatLittleEndian(byte[] buffer, ref int offset)
         {
-            if (buffer == null) throw new ArgumentNullException(nameof(buffer));
+            if (buffer == null)
+            {
+                throw new ArgumentNullException(nameof(buffer));
+            }
+
             if (offset < 0 || offset + 4 > buffer.Length)
-                throw new IndexOutOfRangeException($"Offset {offset} is out of bounds or not enough data for Float in buffer of length {buffer.Length}.");
+            {
+                throw new IndexOutOfRangeException(
+                    $"Offset {offset} is out of bounds or not enough data for Float in buffer of length {buffer.Length}.");
+            }
 
             float result = BitConverter.ToSingle(buffer, offset);
             offset += 4;

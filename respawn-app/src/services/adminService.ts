@@ -1,17 +1,22 @@
-// src/services/adminService.ts
-import { useAuthStore } from '@/stores/authStore';
-import Swal, { type SweetAlertOptions } from 'sweetalert2';
-import type { UserInfo } from '@/stores/authStore'; // Assuming UserInfo is exported or define it here
+import { useAuthStore } from '@/stores/authStore'
+import Swal, { type SweetAlertOptions } from 'sweetalert2'
+import type { UserInfo } from '@/stores/authStore'
 
-const API_BASE_URL = 'http://localhost:5207/api/admin'; // Předpokládaná URL pro admin API
+// Base URL for admin API endpoints
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL + '/api/admin'
 
+/**
+ * Creates custom SweetAlert options with futuristic styling
+ * @param title - Alert title text
+ * @returns SweetAlert configuration options
+ */
 const getFuturisticSwalOptions = (title: string): SweetAlertOptions => {
   return {
     titleText: title,
-    background: '#1A2033', // Tmavě modré pozadí
-    color: '#E0E0E0', // Světlý text
-    confirmButtonColor: '#00E0FF', // Tyrkysové potvrzovací tlačítko
-    cancelButtonColor: '#FF5252', // Červené tlačítko zrušení
+    background: '#1A2033', // Dark blue background
+    color: '#E0E0E0', // Light text
+    confirmButtonColor: '#00E0FF', // Turquoise confirm button
+    cancelButtonColor: '#FF5252', // Red cancel button
     customClass: {
       popup: 'futuristic-swal-popup',
       title: 'futuristic-swal-title font-oxanium',
@@ -23,287 +28,174 @@ const getFuturisticSwalOptions = (title: string): SweetAlertOptions => {
     },
     buttonsStyling: false,
     heightAuto: false,
-  };
-};
-
-interface AdminUserDto extends UserInfo {
-  // Můžete rozšířit o další pole specifická pro admin výpis, pokud API vrací více
-  // Například:
-  // lastLogin?: string;
-  // isLockedOut?: boolean;
+  }
 }
 
+// Standard API response interface
 interface ApiResponse {
-  isSuccess: boolean;
-  message: string;
-  data?: any; // Pro obecná data, pokud API vrací
+  isSuccess: boolean
+  message: string
+  data?: any
 }
 
-
-export const getAllUsers = async (): Promise<AdminUserDto[]> => {
-  const authStore = useAuthStore();
+/**
+ * Fetches all users from the system
+ * @returns Promise containing array of UserInfo objects
+ */
+export const getAllUsers = async (): Promise<UserInfo[]> => {
+  const authStore = useAuthStore()
   if (!authStore.token) {
-    console.error('getAllUsers: Chybi autentizacni token.');
-    Swal.fire(getFuturisticSwalOptions('Chyba').text = 'Chybi autentizacni token.');
-    return [];
+    console.error('getAllUsers: Missing authentication token.')
+    Swal.fire((getFuturisticSwalOptions('Error').text = 'Missing authentication token.'))
+    return []
   }
 
   try {
     const response = await fetch(`${API_BASE_URL}/users`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${authStore.token}`,
+        Authorization: `Bearer ${authStore.token}`,
         'Content-Type': 'application/json',
       },
-    });
+    })
 
+    // Handle authentication errors
     if (response.status === 401 || response.status === 403) {
-      authStore.logout();
+      authStore.logout()
       Swal.fire({
-        ...(getFuturisticSwalOptions('Chyba autorizace')),
+        ...getFuturisticSwalOptions('Authorization Error'),
         icon: 'error',
-        text: 'Nemate opravneni k pristupu nebo vase prihlaseni vyprselo.',
-      });
-      return [];
+        text: 'You do not have permission to access this resource or your session has expired.',
+      })
+      return []
     }
 
+    // Handle general errors
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: `Chyba serveru: ${response.statusText}` }));
-      console.error('getAllUsers chyba:', errorData);
+      const errorData = await response
+        .json()
+        .catch(() => ({ message: `Server error: ${response.statusText}` }))
+      console.error('getAllUsers error:', errorData)
       Swal.fire({
-        ...(getFuturisticSwalOptions('Chyba')),
+        ...getFuturisticSwalOptions('Error'),
         icon: 'error',
-        text: errorData.message || 'Nepodarilo se nacist uzivatele.',
-      });
-      return [];
+        text: errorData.message || 'Failed to load users.',
+      })
+      return []
     }
-    // Předpokládáme, že API vrací pole uživatelů přímo
-    const users: AdminUserDto[] = await response.json();
-    return users;
+    const users: UserInfo[] = await response.json()
+    return users
   } catch (error) {
-    console.error('getAllUsers API chyba:', error);
+    console.error('getAllUsers API error:', error)
     Swal.fire({
-      ...(getFuturisticSwalOptions('Chyba API')),
+      ...getFuturisticSwalOptions('API Error'),
       icon: 'error',
-      text: 'Došlo k chybě při komunikaci se serverem.',
-    });
-    return [];
+      text: 'An error occurred while communicating with the server.',
+    })
+    return []
   }
-};
+}
 
+/**
+ * Updates roles for a specific user
+ * @param userId - The ID of the user to update
+ * @param roles - Array of role names to assign
+ * @returns Promise resolving to success status
+ */
 export const updateUserRoles = async (userId: string, roles: string[]): Promise<boolean> => {
-  const authStore = useAuthStore();
+  const authStore = useAuthStore()
   if (!authStore.token) {
-    Swal.fire(getFuturisticSwalOptions('Chyba').text = 'Chybi autentizacni token.');
-    return false;
+    Swal.fire((getFuturisticSwalOptions('Error').text = 'Missing authentication token.'))
+    return false
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/user/${userId}/roles`, { // Upraveno API endpoint
+    const response = await fetch(`${API_BASE_URL}/user/${userId}/roles`, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${authStore.token}`,
+        Authorization: `Bearer ${authStore.token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(roles), // Odesíláme pole rolí
-    });
+      body: JSON.stringify(roles),
+    })
 
-    const data: ApiResponse = await response.json();
+    const data: ApiResponse = await response.json()
 
     if (!response.ok || !data.isSuccess) {
       Swal.fire({
-        ...(getFuturisticSwalOptions('Chyba aktualizace rolí')),
+        ...getFuturisticSwalOptions('Role Update Error'),
         icon: 'error',
-        text: data.message || 'Nepodařilo se aktualizovat role uživatele.',
-      });
-      return false;
+        text: data.message || 'Failed to update user roles.',
+      })
+      return false
     }
     Swal.fire({
-      ...(getFuturisticSwalOptions('Úspěch!')),
+      ...getFuturisticSwalOptions('Success!'),
       icon: 'success',
-      text: data.message || 'Role uživatele byly úspěšně aktualizovaný.',
+      text: data.message || 'User roles were successfully updated.',
       timer: 2000,
       showConfirmButton: false,
-    });
-    return true;
+    })
+    return true
   } catch (error) {
-    console.error('updateUserRoles API chyba:', error);
-    Swal.fire(getFuturisticSwalOptions('Chyba API').text = 'Došlo k chybě při komunikaci se serverem.');
-    return false;
+    console.error('updateUserRoles API error:', error)
+    Swal.fire(
+      (getFuturisticSwalOptions('API Error').text =
+        'An error occurred while communicating with the server.'),
+    )
+    return false
   }
-};
+}
 
-
+/**
+ * Deletes a user from the system after confirmation
+ * @param userId - ID of the user to delete
+ * @returns Promise resolving to success status
+ */
 export const deleteUser = async (userId: string): Promise<boolean> => {
-  const authStore = useAuthStore();
+  const authStore = useAuthStore()
   if (!authStore.token) {
-    Swal.fire(getFuturisticSwalOptions('Chyba').text = 'Chybi autentizacni token.');
-    return false;
+    Swal.fire((getFuturisticSwalOptions('Error').text = 'Missing authentication token.'))
+    return false
   }
 
+  // Confirm deletion with user
   const result = await Swal.fire({
-    ...getFuturisticSwalOptions('Potvrdit smazani'),
-    text: `Opravdu chcete smazat uživatele s ID: ${userId}? Tato akce je nevratná!`,
+    ...getFuturisticSwalOptions('Confirm Deletion'),
+    text: `Are you sure you want to delete the user with ID: ${userId}? This action cannot be undone!`,
     icon: 'warning',
     showCancelButton: true,
-    confirmButtonText: 'Ano, smazat',
-    cancelButtonText: 'Zrušit',
-  });
+    confirmButtonText: 'Yes, delete',
+    cancelButtonText: 'Cancel',
+  })
 
   if (!result.isConfirmed) {
-    return false;
+    return false
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/user/${userId}`, { // Upraveno API endpoint
+    const response = await fetch(`${API_BASE_URL}/user/${userId}`, {
       method: 'DELETE',
       headers: {
-        'Authorization': `Bearer ${authStore.token}`,
+        Authorization: `Bearer ${authStore.token}`,
       },
-    });
-    const data: ApiResponse = await response.json();
+    })
+    const data: ApiResponse = await response.json()
     if (!response.ok || !data.isSuccess) {
-      Swal.fire(getFuturisticSwalOptions('Chyba').text = data.message || 'Nepodařilo se smazat uživatele.');
-      return false;
+      Swal.fire((getFuturisticSwalOptions('Error').text = data.message || 'Failed to delete user.'))
+      return false
     }
-    Swal.fire(getFuturisticSwalOptions('Úspěch!').text = data.message || 'Uzivatel byl uspesne smazan.');
-    return true;
+    Swal.fire(
+      (getFuturisticSwalOptions('Success!').text =
+        data.message || 'User was successfully deleted.'),
+    )
+    return true
   } catch (error) {
-    console.error('deleteUser API chyba:', error);
-    Swal.fire(getFuturisticSwalOptions('Chyba API').text = 'Došlo k chybě při komunikaci se serverem.');
-    return false;
+    console.error('deleteUser API error:', error)
+    Swal.fire(
+      (getFuturisticSwalOptions('API Error').text =
+        'An error occurred while communicating with the server.'),
+    )
+    return false
   }
-};
-
-export const resetDatabase = async (): Promise<boolean> => {
-  const authStore = useAuthStore();
-  if (!authStore.token) {
-    Swal.fire(getFuturisticSwalOptions('Chyba').text = 'Chybi autentizacni token.');
-    return false;
-  }
-
-  const { value: confirmText } = await Swal.fire({
-    ...getFuturisticSwalOptions('POTVRDIT RESET DATABAZE'),
-    html: `
-      <p class="text-red-400 font-bold">TATO AKCE JE EXTREMNE NEBEZPECNA A NEVRATNA!</p>
-      <p>Pro potvrzeni resetu databaze napiste "RESETDB" do pole nize:</p>
-    `,
-    input: 'text',
-    inputPlaceholder: 'RESETDB',
-    icon: 'error',
-    showCancelButton: true,
-    confirmButtonText: 'Resetovat databazi',
-    cancelButtonText: 'Zrusit',
-    inputValidator: (value) => {
-      if (value !== 'RESETDB') {
-        return 'Pro potvrzeni musite napsat RESETDB';
-      }
-      return null;
-    }
-  });
-
-  if (confirmText !== 'RESETDB') {
-    return false;
-  }
-
-  try {
-    Swal.fire({
-        ...getFuturisticSwalOptions('Probíhá reset...'),
-        text: 'Databáze se resetuje, prosím čekejte.',
-        allowOutsideClick: false,
-        didOpen: () => {
-            Swal.showLoading();
-        }
-    });
-    const response = await fetch(`${API_BASE_URL}/database/reset`, {
-      method: 'POST', // Nebo DELETE, podle vaší API specifikace
-      headers: {
-        'Authorization': `Bearer ${authStore.token}`,
-      },
-    });
-    const data: ApiResponse = await response.json();
-    Swal.close();
-    if (!response.ok || !data.isSuccess) {
-      Swal.fire(getFuturisticSwalOptions('Chyba').text = data.message || 'Nepodarilo se resetovat databazi.');
-      return false;
-    }
-    Swal.fire(getFuturisticSwalOptions('Úspěch!').text = data.message || 'Databaze byla uspesne resetovana.');
-    return true;
-  } catch (error) {
-    Swal.close();
-    console.error('resetDatabase API chyba:', error);
-    Swal.fire(getFuturisticSwalOptions('Chyba API').text = 'Došlo k chybě při komunikaci se serverem.');
-    return false;
-  }
-};
-
-export const deleteDatabase = async (): Promise<boolean> => {
-  const authStore = useAuthStore();
-  if (!authStore.token) {
-    Swal.fire(getFuturisticSwalOptions('Chyba').text = 'Chybi autentizacni token.');
-    return false;
-  }
-
-   const { value: confirmText } = await Swal.fire({
-    ...getFuturisticSwalOptions('POTVRDIT SMAZANI DATABAZE'),
-    html: `
-      <p class="text-red-500 font-bold text-xl">!!! EXTREMNE NEBEZPECNA AKCE !!!</p>
-      <p class="text-red-400">Tato akce kompletne a nevratne smaze celou databazi!</p>
-      <p>Pro potvrzeni smazani databaze napiste "SMAZATDB" do pole nize:</p>
-    `,
-    input: 'text',
-    inputPlaceholder: 'SMAZATDB',
-    icon: 'error',
-    showCancelButton: true,
-    confirmButtonText: 'Ano, SMAZAT DATABAZI',
-    confirmButtonColor: '#d33',
-    cancelButtonText: 'Zrusit',
-    inputValidator: (value) => {
-      if (value !== 'SMAZATDB') {
-        return 'Pro potvrzeni musite napsat SMAZATDB';
-      }
-      return null;
-    }
-  });
-
-  if (confirmText !== 'SMAZATDB') {
-    return false;
-  }
-
-  try {
-    Swal.fire({
-        ...getFuturisticSwalOptions('Probíhá mazání...'),
-        text: 'Databáze se maže, prosím čekejte.',
-        allowOutsideClick: false,
-        didOpen: () => {
-            Swal.showLoading();
-        }
-    });
-    const response = await fetch(`${API_BASE_URL}/database/delete-all`, { // Upraveno API endpoint
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${authStore.token}`,
-      },
-    });
-    const data: ApiResponse = await response.json();
-    Swal.close();
-    if (!response.ok || !data.isSuccess) {
-      Swal.fire(getFuturisticSwalOptions('Chyba').text = data.message || 'Nepodarilo se smazat databazi.');
-      return false;
-    }
-    Swal.fire(getFuturisticSwalOptions('Úspěch!').text = data.message || 'Databaze byla uspesne smazana.');
-    // Po smazání databáze by se měl administrátor pravděpodobně odhlásit nebo aplikace restartovat
-    authStore.logout();
-    // router.push('/'); // nebo jiná vhodná akce
-    return true;
-  } catch (error) {
-    Swal.close();
-    console.error('deleteDatabase API chyba:', error);
-    Swal.fire(getFuturisticSwalOptions('Chyba API').text = 'Došlo k chybě při komunikaci se serverem.');
-    return false;
-  }
-};
-
-// Zde můžete přidat další funkce pro správu uživatelů, např. updateUser, atd.
-// Například:
-// export const updateUser = async (userId: string, userData: Partial<AdminUserDto>): Promise<boolean> => { ... }
+}

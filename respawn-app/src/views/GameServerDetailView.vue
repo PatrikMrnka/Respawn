@@ -160,16 +160,14 @@ import { useRoute, useRouter } from 'vue-router';
 import { getGameServerDetails, type GameServerDetailDtoFE, type PlayerDetailDtoFE } from '@/services/gameServerService';
 import { useAuthStore } from '@/stores/authStore';
 import Swal, { type SweetAlertOptions } from 'sweetalert2';
-import { signalRService } from '@/services/signalrService'; // For A2S/Status updates
-import { serverLogSignalr } from '@/services/serverLogSignalrService'; // For live logs
-// Removed getContainerLogs as we are implementing live logs
-import Convert from 'ansi-to-html'; // For formatting ANSI in logs
+import { signalRService } from '@/services/signalrService';
+import { serverLogSignalr } from '@/services/serverLogSignalrService';
+import Convert from 'ansi-to-html';
 
 import {
   mdiArrowLeft, mdiTag, mdiMapMarker, mdiAccountGroup, mdiShieldCheck, mdiInformationOutline, mdiServerNetwork, mdiClockTimeFourOutline, mdiTextBoxOutline, mdiAccountOff,
   mdiServerOff, mdiAlphaTBoxOutline, mdiPuzzleOutline, mdiServer,
   mdiPlayCircleOutline, mdiStopCircleOutline, mdiDelete, mdiAlertCircleOutline
-  // mdiConsoleLine removed as it's replaced by live logs button
 } from '@mdi/js';
 import { GameType, ServerStatus, UserRoles } from '@/types/enums';
 import type { GameServerDto, GameServerStatusUpdateDtoFE as BasicStatusUpdateDto } from '@/components/ServerCard.vue';
@@ -179,25 +177,32 @@ const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 
+// Server identification and state
 const serverId = ref<string>(route.params.id as string);
 const serverDetails = ref<GameServerDetailDtoFE | null>(null);
 const loading = ref(true);
 const apiError = ref<string | null>(null);
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
+// UI loading states
 const actionLoading = ref(false);
-// const logLoading = ref(false); // Replaced by logLoadingState
 const deleteLoading = ref(false);
 
+// SignalR hub path
 const GAME_SERVER_HUB_PATH = "/gameServerHub";
 
-// Real-time logs state
+// Real-time logs state management
 const realtimeLogs = ref<string[]>([]);
 const isLiveLogging = ref(false);
-const logLoadingState = ref(false); // For "Sledovat/Zastavit" button loading state
+const logLoadingState = ref(false); // For "Watch/Stop" button loading state
 const logContainer = ref<HTMLElement | null>(null); // Ref for the log container div
 const ansiConverter = new Convert({ newline: true, escapeXML: true, fg: '#FFF', bg: '#1A2033' });
 
 
+/**
+ * Computed property to determine what message to display regarding A2S query status
+ * Returns appropriate message based on server status and A2S data availability
+ */
 const a2sDisplayMessage = computed<string | null>(() => {
   if (!serverDetails.value) return null;
   if (serverDetails.value.status !== ServerStatus.Online) {
@@ -217,6 +222,10 @@ const a2sDisplayMessage = computed<string | null>(() => {
   return null;
 });
 
+/**
+ * Fetches server details from the API
+ * Sets loading state and handles errors
+ */
 const fetchDetails = async () => {
   loading.value = true;
   apiError.value = null;
@@ -236,18 +245,27 @@ const fetchDetails = async () => {
   }
 };
 
+/**
+ * Maps game type enum to appropriate icon
+ */
 const getGameIcon = (gameType: GameType) => ({
   [GameType.CounterStrike]: mdiServer,
   [GameType.TeamFortress2]: mdiAlphaTBoxOutline,
   [GameType.GarrysMod]: mdiPuzzleOutline,
 }[gameType] || mdiServerOff);
 
+/**
+ * Maps game type enum to human-readable text
+ */
 const getGameTypeText = (gameType: GameType) => ({
   [GameType.CounterStrike]: "Counter-Strike 1.6",
   [GameType.TeamFortress2]: "Team Fortress 2",
   [GameType.GarrysMod]: "Garry's Mod",
 }[gameType] || "Neznámá hra");
 
+/**
+ * Maps server status to appropriate color for UI
+ */
 const getOverallStatusColor = (status: ServerStatus) => ({
   [ServerStatus.Online]: 'success', [ServerStatus.Offline]: 'error',
   [ServerStatus.Starting]: 'info', [ServerStatus.Stopping]: 'warning',
@@ -256,6 +274,9 @@ const getOverallStatusColor = (status: ServerStatus) => ({
   [ServerStatus.Restarting]: 'cyan',
 }[status] || 'grey');
 
+/**
+ * Maps server status enum to human-readable text
+ */
 const getServerStatusText = (status: ServerStatus) => ({
   [ServerStatus.Online]: "Online", [ServerStatus.Offline]: "Offline",
   [ServerStatus.Starting]: "Spouští se", [ServerStatus.Stopping]: "Zastavuje se",
@@ -264,11 +285,17 @@ const getServerStatusText = (status: ServerStatus) => ({
   [ServerStatus.Restarting]: "Restartuje se",
 }[status] || "Neznámý stav");
 
+/**
+ * Formats date string to localized format
+ */
 const formatFullDateTime = (dateString?: string) => {
   if (!dateString) return 'N/A';
   return new Date(dateString).toLocaleString('cs-CZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 
+/**
+ * Converts seconds to human-readable time format (Xh Xm Xs)
+ */
 const formatDuration = (seconds: number): string => {
   if (isNaN(seconds) || seconds < 0) return 'N/A';
   const h = Math.floor(seconds / 3600);
@@ -277,6 +304,9 @@ const formatDuration = (seconds: number): string => {
   return `${h > 0 ? h + 'h ' : ''}${m > 0 ? m + 'm ' : ''}${s}s`;
 };
 
+/**
+ * SignalR handler for full server update events
+ */
 const handleReceiveGameServerUpdate = (updatedServer: GameServerDetailDtoFE | GameServerDto) => {
   if (updatedServer.gameServerId === serverId.value) {
     serverDetails.value = { 
@@ -288,6 +318,9 @@ const handleReceiveGameServerUpdate = (updatedServer: GameServerDetailDtoFE | Ga
   }
 };
 
+/**
+ * SignalR handler for server status update events
+ */
 const handleReceiveGameServerStatusUpdate = (statusUpdate: BasicStatusUpdateDto) => {
   if (statusUpdate.gameServerId === serverId.value && serverDetails.value) {
     serverDetails.value.status = statusUpdate.newOverallStatus;
@@ -304,6 +337,10 @@ const handleReceiveGameServerStatusUpdate = (statusUpdate: BasicStatusUpdateDto)
   }
 };
 
+/**
+ * Handler for new log lines received from SignalR
+ * Adds line to log buffer and maintains max size
+ */
 const handleNewLogLine = (line: string) => {
   realtimeLogs.value.push(line);
   if (realtimeLogs.value.length > 200) { // Keep only the last 200 lines
@@ -317,10 +354,17 @@ const handleNewLogLine = (line: string) => {
   });
 };
 
+/**
+ * Converts ANSI escape codes in log lines to HTML for colored output
+ */
 const formatLogLine = (line: string) => {
     return ansiConverter.toHtml(line);
 };
 
+/**
+ * Toggles real-time log monitoring
+ * Connects to SignalR log hub when starting, disconnects when stopping
+ */
 const toggleLiveLogs = async () => {
   if (!serverDetails.value?.gameServerId) return;
   logLoadingState.value = true;
@@ -328,7 +372,6 @@ const toggleLiveLogs = async () => {
   if (isLiveLogging.value) {
     await serverLogSignalr.unwatchLogs(serverDetails.value.gameServerId);
     isLiveLogging.value = false;
-    // realtimeLogs.value.push("[SYSTEM] Sledování logů zastaveno uživatelem.");
   } else {
     realtimeLogs.value = []; // Clear previous logs
     const connected = await serverLogSignalr.startConnection();
@@ -342,7 +385,10 @@ const toggleLiveLogs = async () => {
   logLoadingState.value = false;
 };
 
-
+/**
+ * Component lifecycle hook
+ * Fetches server details and sets up SignalR connections
+ */
 onMounted(async () => {
   await fetchDetails();
   if (authStore.isLoggedIn) {
@@ -356,11 +402,14 @@ onMounted(async () => {
   }
 });
 
+/**
+ * Component cleanup hook
+ * Removes SignalR event handlers and closes connections
+ */
 onBeforeUnmount(async () => {
   if (authStore.isLoggedIn) {
     signalRService.off(GAME_SERVER_HUB_PATH, "ReceiveGameServerUpdate", handleReceiveGameServerUpdate as (updatedServer: GameServerDto) => void);
     signalRService.off(GAME_SERVER_HUB_PATH, "ReceiveGameServerStatusUpdate", handleReceiveGameServerStatusUpdate as (statusUpdate: BasicStatusUpdateDto) => void);
-    // GameServerHub connection is likely managed globally or by ServersView, so no stop here.
   }
   // Stop live logging if active when component is unmounted
   if (isLiveLogging.value && serverDetails.value?.gameServerId) {
@@ -369,20 +418,33 @@ onBeforeUnmount(async () => {
   await serverLogSignalr.stopConnection(); // Ensure log hub connection is closed
 });
 
+/**
+ * Determines if current user has permissions to manage servers
+ */
 const canManageServer = computed(() => {
   return authStore.isLoggedIn && (authStore.user?.roles.includes(UserRoles.Administrator) || authStore.user?.roles.includes(UserRoles.Spravce));
 });
 
+/**
+ * Checks if server status is a transitional state
+ */
 const isLoadingStatus = (status: ServerStatus): boolean => {
     return [
         ServerStatus.Starting, ServerStatus.Stopping,
         ServerStatus.PendingCreation, ServerStatus.Restarting
     ].includes(status);
 };
+
+/**
+ * Determines if server action buttons should be disabled
+ */
 const isActionDisabled = (status: ServerStatus): boolean => {
     return isLoadingStatus(status) || status === ServerStatus.Unknown;
 };
 
+/**
+ * Creates base SweetAlert2 options with futuristic styling
+ */
 const getFuturisticSwalBaseOptions = (title: string): SweetAlertOptions => ({
   titleText: title, background: '#1A2033', color: '#E0E0E0',
   confirmButtonColor: '#00E0FF', cancelButtonColor: '#FF5252',
@@ -396,6 +458,10 @@ const getFuturisticSwalBaseOptions = (title: string): SweetAlertOptions => ({
   buttonsStyling: false, heightAuto: false, allowEnterKey: true,
 });
 
+/**
+ * Handles start/stop server operations
+ * Sends API request and shows appropriate messages
+ */
 const toggleServerState = async (server: GameServerDetailDtoFE) => {
     if (!server.containerId) {
         Swal.fire({...getFuturisticSwalBaseOptions('Chyba'), text: 'Server nemá přiřazené ID kontejneru.', icon: 'error'});
@@ -405,7 +471,7 @@ const toggleServerState = async (server: GameServerDetailDtoFE) => {
     const action = server.status === ServerStatus.Online ? 'stop' : 'start';
     
     try {
-        const response = await fetch(`http://localhost:5207/api/gameservers/${server.gameServerId}/${action}`, {
+        const response = await fetch(API_BASE_URL+`/api/gameservers/${server.gameServerId}/${action}`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${authStore.token}` }
         });
@@ -422,8 +488,10 @@ const toggleServerState = async (server: GameServerDetailDtoFE) => {
     }
 };
 
-// viewServerLogs (batch) is removed, replaced by toggleLiveLogs
-
+/**
+ * Confirmation dialog for server deletion
+ * Handles the delete API call if confirmed
+ */
 const confirmDeleteServer = (server: GameServerDetailDtoFE) => {
     deleteLoading.value = true;
     Swal.fire({
@@ -433,7 +501,7 @@ const confirmDeleteServer = (server: GameServerDetailDtoFE) => {
         showLoaderOnConfirm: true,
         preConfirm: async () => {
             try {
-                 const response = await fetch(`http://localhost:5207/api/gameservers/${server.gameServerId}`, {
+                 const response = await fetch(API_BASE_URL+`/api/gameservers/${server.gameServerId}`, {
                     method: 'DELETE',
                     headers: { 'Authorization': `Bearer ${authStore.token}` }
                 });
@@ -532,27 +600,26 @@ const confirmDeleteServer = (server: GameServerDetailDtoFE) => {
 }
 
 .realtime-logs-container {
-  background-color: #010409; /* Tmavé pozadí pro logy */
-  color: #c9d1d9; /* Světlý text */
+  background-color: #010409;
+  color: #c9d1d9;
   border: 1px solid rgba(var(--v-theme-primary-rgb), 0.3);
   border-radius: 6px;
-  height: 400px; /* Nebo dle potřeby */
+  height: 400px;
   overflow-y: auto;
   font-family: 'Roboto Mono', monospace;
   font-size: 0.8rem;
-  white-space: pre-wrap; /* Zachování mezer a zalomení */
+  white-space: pre-wrap;
   word-break: break-all;
 }
 .log-line {
   padding: 2px 5px;
-  border-bottom: 1px solid rgba(255,255,255,0.05); /* Jemný oddělovač řádků */
+  border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 .log-line:last-child {
   border-bottom: none;
 }
-/* Styly pro ANSI barvy, pokud je budete implementovat na frontendu */
-:deep(.realtime-logs-container span) { /* Cílení na spany generované ansi-to-html */
-    display: inline !important; /* Ujistěte se, že spany zůstávají inline */
+:deep(.realtime-logs-container span) {
+    display: inline !important;
 }
 
 

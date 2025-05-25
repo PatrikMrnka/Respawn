@@ -1,28 +1,39 @@
-// File: haha/respawn-app/src/services/gameServerService.ts
-import type { GameServerDto } from '@/components/ServerCard.vue';
-import { useAuthStore } from '@/stores/authStore';
-import Swal from 'sweetalert2';
+import type { GameServerDto } from '@/components/ServerCard.vue'
+import { useAuthStore } from '@/stores/authStore'
+import Swal from 'sweetalert2'
 
-// Frontend DTOs (mirroring backend DTOs)
+// Interface for player details shown in the frontend
 export interface PlayerDetailDtoFE {
-  name: string;
-  score: number;
-  duration: number;
+  name: string
+  score: number
+  duration: number
 }
 
-export interface GameServerDetailDtoFE extends GameServerDto { // Extends the basic DTO from ServersView
-  gameName?: string;
-  mapName?: string;
-  maxPlayers?: number;
-  currentPlayers?: number;
-  isVacSecured?: boolean;
-  players: PlayerDetailDtoFE[];
+// Extended interface for game server details including player information
+export interface GameServerDetailDtoFE extends GameServerDto {
+  gameName?: string
+  mapName?: string
+  maxPlayers?: number
+  currentPlayers?: number
+  isVacSecured?: boolean
+  players: PlayerDetailDtoFE[]
 }
 
+// Base URL for game server API endpoints
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL + '/api/gameservers'
 
-const API_BASE_URL = 'http://localhost:5207/api/gameservers';
-
-const getFuturisticSwalOptions = (title: string, text: string = '', icon: 'success' | 'error' | 'warning' | 'info' | 'question' = 'info') => {
+/**
+ * Creates a customized SweetAlert2 configuration with futuristic styling
+ * @param title - Alert title
+ * @param text - Alert message
+ * @param icon - Alert icon type
+ * @returns SweetAlert2 configuration object
+ */
+const getFuturisticSwalOptions = (
+  title: string,
+  text: string = '',
+  icon: 'success' | 'error' | 'warning' | 'info' | 'question' = 'info',
+) => {
   return {
     titleText: title,
     text: text,
@@ -38,51 +49,81 @@ const getFuturisticSwalOptions = (title: string, text: string = '', icon: 'succe
     },
     buttonsStyling: false,
     heightAuto: false,
-  };
-};
+  }
+}
 
-export const getGameServerDetails = async (serverId: string): Promise<GameServerDetailDtoFE | null> => {
-  const authStore = useAuthStore();
+/**
+ * Fetches detailed information about a specific game server
+ * @param serverId - The ID of the game server to fetch details for
+ * @returns Promise resolving to server details or null if request fails
+ */
+export const getGameServerDetails = async (
+  serverId: string,
+): Promise<GameServerDetailDtoFE | null> => {
+  const authStore = useAuthStore()
+  // Check if user is authenticated
   if (!authStore.token) {
-    console.error('getGameServerDetails: Chybí autentizační token.');
-    Swal.fire(getFuturisticSwalOptions('Chyba autentizace', 'Pro zobrazení detailů serveru je nutné přihlášení.', 'error'));
-    return null;
+    console.error('getGameServerDetails: Authentication token missing.')
+    Swal.fire(
+      getFuturisticSwalOptions(
+        'Authentication Error',
+        'Login required to view server details.',
+        'error',
+      ),
+    )
+    return null
   }
 
   try {
+    // Make API request to fetch server details
     const response = await fetch(`${API_BASE_URL}/${serverId}/details`, {
       headers: {
-        'Authorization': `Bearer ${authStore.token}`,
+        Authorization: `Bearer ${authStore.token}`,
         'Content-Type': 'application/json',
       },
-    });
+    })
 
+    // Handle different response statuses
     if (response.status === 401) {
-      authStore.logout(); // Or handle re-authentication
-      Swal.fire(getFuturisticSwalOptions('Chyba autorizace', 'Vaše přihlášení vypršelo. Přihlaste se prosím znovu.', 'error'));
-      return null;
+      authStore.logout()
+      Swal.fire(
+        getFuturisticSwalOptions(
+          'Authorization Error',
+          'Your session has expired. Please log in again.',
+          'error',
+        ),
+      )
+      return null
     }
     if (response.status === 404) {
-      Swal.fire(getFuturisticSwalOptions('Server nenalezen', 'Požadovaný herní server nebyl nalezen.', 'error'));
-      return null;
+      Swal.fire(
+        getFuturisticSwalOptions(
+          'Server Not Found',
+          'The requested game server was not found.',
+          'error',
+        ),
+      )
+      return null
     }
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: `Chyba serveru: ${response.statusText}` }));
-      throw new Error(errorData.message || 'Nepodařilo se načíst detaily serveru.');
+      const errorData = await response
+        .json()
+        .catch(() => ({ message: `Server error: ${response.statusText}` }))
+      throw new Error(errorData.message || 'Failed to load server details.')
     }
-    
-    const data: GameServerDetailDtoFE = await response.json();
-    return data;
 
+    // Parse and return server details
+    const data: GameServerDetailDtoFE = await response.json()
+    return data
   } catch (error: any) {
-    console.error(`getGameServerDetails (${serverId}) API error:`, error);
-    Swal.fire(getFuturisticSwalOptions('Chyba načítání', error.message || 'Došlo k chybě při komunikaci se serverem.', 'error'));
-    return null;
+    console.error(`getGameServerDetails (${serverId}) API error:`, error)
+    Swal.fire(
+      getFuturisticSwalOptions(
+        'Loading Error',
+        error.message || 'An error occurred while communicating with the server.',
+        'error',
+      ),
+    )
+    return null
   }
-};
-
-// Add other game server related service functions here if needed (e.g., for start, stop, delete if not in dockerAdminService)
-// For now, dockerAdminService handles start/stop/delete of containers, which is linked to game servers.
-// The GameServersController on backend handles the logic of mapping these actions to game servers.
-// So, calls for start/stop/delete from ServersView.txt can remain as they are,
-// or be refactored into this service if preferred for consistency.
+}

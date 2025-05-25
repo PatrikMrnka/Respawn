@@ -15,18 +15,6 @@
           <v-card-text>
             <p class="font-inter mb-4">Vítejte v administraci. Zde můžete spravovat různé aspekty aplikace.</p>
             
-            <div v-if="isSuperAdmin" class="mb-8">
-                <h3 class="text-h6 font-exo2 mb-3">Správa Databáze</h3>
-                <v-btn
-                  color="error"
-                  @click="confirmResetDatabase"
-                  class="futuristic-btn error-btn"
-                  :loading="resettingDatabase"
-                >
-                  <v-icon left>{{ mdiDatabaseRefresh }}</v-icon>
-                  Resetovat Databázi (Nebezpečné!)
-                </v-btn>
-            </div>
             <v-divider v-if="isSuperAdmin" class="my-6"></v-divider>
 
             <div>
@@ -167,354 +155,406 @@ import { ref, onMounted, computed, reactive, watch } from 'vue';
 import Swal, { type SweetAlertOptions } from 'sweetalert2';
 import { useAuthStore, type UserInfo } from '@/stores/authStore';
 import { UserRoles } from '@/types/enums';
-import { resetDatabase, getAllUsers, updateUserRoles, deleteUser as deleteUserService } from '@/services/adminService';
+import { getAllUsers, updateUserRoles, deleteUser as deleteUserService } from '@/services/adminService';
 import {
-    getVolumes, deleteVolume, getContainers, startContainer, stopContainer, deleteContainer, getContainerLogs, getImages, deleteImage
+  getVolumes, deleteVolume, getContainers, startContainer, stopContainer, deleteContainer, getContainerLogs, getImages, deleteImage
 } from '@/services/dockerAdminService';
 import type { DockerVolumeDto, DockerContainerDto, DockerImageDto } from '@/types/dockerAdmin';
-import { mdiDatabaseRefresh, mdiRefresh, mdiPlay, mdiStop, mdiFileDocumentOutline, mdiDelete, mdiPencil } from '@mdi/js';
+import {  mdiRefresh, mdiPlay, mdiStop, mdiFileDocumentOutline, mdiDelete, mdiPencil } from '@mdi/js';
 
+// Access authentication store
 const authStore = useAuthStore();
+// Active tab references
 const activeTab = ref('general');
 const dockerSubTab = ref('containers');
-const resettingDatabase = ref(false);
 
+// User management reactive data
 const userList = ref<UserInfo[]>([]);
 const usersLoading = ref(true);
 const usersError = ref<string | null>(null);
 
+// Docker container data storage object
 const dockerData = reactive<{
   volumes: DockerVolumeDto[],
   containers: DockerContainerDto[],
   images: DockerImageDto[]
 }>({ volumes: [], containers: [], images: [] });
 
+// Loading state trackers for Docker operations
 const dockerLoading = reactive({ volumes: false, containers: false, images: false });
 const actionLoading = reactive<Record<string, boolean>>({});
 
+// Check if current user has super admin permissions
 const isSuperAdmin = computed(() => authStore.user?.roles?.includes(UserRoles.Administrator));
 
+/**
+ * Returns base SweetAlert configuration with futuristic styling
+ * @param title The title for the SweetAlert dialog
+ */
 const getFuturisticSwalBaseOptions = (title: string): SweetAlertOptions => ({
   titleText: title, background: '#1A2033', color: '#E0E0E0',
   confirmButtonColor: '#00E0FF', cancelButtonColor: '#FF5252',
   customClass: {
-    popup: 'futuristic-swal-popup', title: 'futuristic-swal-title font-oxanium',
-    htmlContainer: 'futuristic-swal-html-container font-inter', input: 'futuristic-swal-input',
-    confirmButton: 'futuristic-swal-confirm-button futuristic-btn',
-    cancelButton: 'futuristic-swal-cancel-button futuristic-btn',
-    actions: 'futuristic-swal-actions', validationMessage: 'futuristic-swal-validation-message font-inter',
+  popup: 'futuristic-swal-popup', title: 'futuristic-swal-title font-oxanium',
+  htmlContainer: 'futuristic-swal-html-container font-inter', input: 'futuristic-swal-input',
+  confirmButton: 'futuristic-swal-confirm-button futuristic-btn',
+  cancelButton: 'futuristic-swal-cancel-button futuristic-btn',
+  actions: 'futuristic-swal-actions', validationMessage: 'futuristic-swal-validation-message font-inter',
   },
   buttonsStyling: false, heightAuto: false, allowEnterKey: true,
 });
 
-const confirmResetDatabase = () => {
-  Swal.fire({
-    ...getFuturisticSwalBaseOptions('Opravdu resetovat databázi?'),
-    html: `<div class="font-inter">Tato akce je <strong>extrémně nebezpečná</strong> a smaže všechna data v databázi!<br>Jste si absolutně jisti?</div>`,
-    icon: 'error',
-    showCancelButton: true,
-    confirmButtonText: 'Ano, resetovat!',
-    cancelButtonText: 'Zrušit',
-    confirmButtonColor: '#d33',
-    showLoaderOnConfirm: true,
-    preConfirm: async () => {
-      resettingDatabase.value = true;
-      try {
-        const success = await resetDatabase();
-        if (!success) {
-          Swal.showValidationMessage('Reset databáze selhal.');
-        }
-        return success;
-      } catch (err: any) {
-        Swal.showValidationMessage(`Chyba: ${err.message}`);
-        return false;
-      } finally {
-        resettingDatabase.value = false;
-      }
-    }
-  }).then((result) => {
-    if (result.isConfirmed && result.value) {
-      Swal.fire({...getFuturisticSwalBaseOptions('Resetováno!'), text: 'Databáze byla (nebo se pokusila být) resetována.', icon: 'success'});
-    }
-  });
-};
-
+/**
+ * Fetches all users for admin management
+ * Only accessible to super admins
+ */
 const fetchAdminUsers = async () => {
   if (!isSuperAdmin.value) {
-    usersLoading.value = false;
-    return;
+  usersLoading.value = false;
+  return;
   }
   usersLoading.value = true;
   usersError.value = null;
   try {
-    const fetchedUsers = await getAllUsers();
-    if (fetchedUsers) {
-      userList.value = fetchedUsers;
-    } else {
-      usersError.value = 'Nepodařilo se načíst uživatele nebo nemáte oprávnění.';
-    }
+  const fetchedUsers = await getAllUsers();
+  if (fetchedUsers) {
+    userList.value = fetchedUsers;
+  } else {
+    usersError.value = 'Nepodařilo se načíst uživatele nebo nemáte oprávnění.';
+  }
   } catch (err: any) {
-    usersError.value = err.message || 'Došlo k chybě při komunikaci se serverem.';
+  usersError.value = err.message || 'Došlo k chybě při komunikaci se serverem.';
   } finally {
-    usersLoading.value = false;
+  usersLoading.value = false;
   }
 };
 
+/**
+ * Checks if the provided userId matches the current logged-in user
+ */
 const isCurrentUser = (userId: string) => authStore.user?.id === userId;
 
+/**
+ * Returns appropriate color for user role badges
+ */
 const getRoleColor = (role: string) => {
   if (role === UserRoles.Administrator) return 'primary';
   if (role === UserRoles.Spravce) return 'secondary';
   return 'grey-darken-1';
 };
 
+/**
+ * Determines if current user can edit the specified user
+ * Currently only super admins can edit users
+ */
 const canEditUser = (user: UserInfo): boolean => {
-    if (!authStore.user) return false;
-    if (isSuperAdmin.value) {
-        return true; 
-    }
-    return false;
+  if (!authStore.user) return false;
+  if (isSuperAdmin.value) {
+    return true; 
+  }
+  return false;
 };
 
+/**
+ * Determines if current user can delete the specified user
+ * Users cannot delete themselves, only super admins can delete users
+ */
 const canDeleteUser = (user: UserInfo): boolean => {
-    if (!authStore.user) return false;
-    if (isCurrentUser(user.id)) return false;
-    if (isSuperAdmin.value) {
-        return true;
-    }
-    return false;
+  if (!authStore.user) return false;
+  if (isCurrentUser(user.id)) return false;
+  if (isSuperAdmin.value) {
+    return true;
+  }
+  return false;
 };
 
-
+/**
+ * Opens modal dialog for editing user roles
+ * Presents checkboxes for all available roles
+ */
 const openEditUserModal = async (user: UserInfo) => {
   const availableRoles = Object.values(UserRoles);
   const rolesCheckboxesHtml = availableRoles.map(role => `
-    <label class="swal-checkbox-label font-inter">
-      <input type="checkbox" id="swal-role-${role.replace(/\s+/g, '-')}" class="swal2-checkbox futuristic-swal-checkbox" value="${role}" ${user.roles.includes(role) ? 'checked' : ''}>
-      ${role}
-    </label>
+  <label class="swal-checkbox-label font-inter">
+    <input type="checkbox" id="swal-role-${role.replace(/\s+/g, '-')}" class="swal2-checkbox futuristic-swal-checkbox" value="${role}" ${user.roles.includes(role) ? 'checked' : ''}>
+    ${role}
+  </label>
   `).join('');
 
   const { value: selectedRolesArray, isConfirmed } = await Swal.fire({
-    ...getFuturisticSwalBaseOptions(`Upravit role pro ${user.nickname}`),
-    html: `<div class="swal-form-container"><p class="swal-label font-inter mb-2">Vyberte role:</p>${rolesCheckboxesHtml}</div>`,
-    customClass: { popup: 'futuristic-swal-popup large-swal', htmlContainer: 'futuristic-swal-html-container font-inter swal-form-container-custom-padding' },
-    focusConfirm: false, showCancelButton: true, confirmButtonText: 'Uložit změny', cancelButtonText: 'Zrušit', showLoaderOnConfirm: true,
-    preConfirm: () => {
-      const newRoles: string[] = [];
-      availableRoles.forEach(role => {
-        const checkbox = document.getElementById(`swal-role-${role.replace(/\s+/g, '-')}`) as HTMLInputElement;
-        if (checkbox && checkbox.checked) newRoles.push(role);
-      });
-      if (newRoles.length === 0) { Swal.showValidationMessage('Uživatel musí mít alespoň jednu roli.'); return false; }
-      if (user.roles.includes(UserRoles.Administrator) && !newRoles.includes(UserRoles.Administrator)) {
-        const adminUsers = userList.value.filter(u => u.roles.includes(UserRoles.Administrator));
-        if (adminUsers.length === 1 && adminUsers[0].id === user.id) {
-          Swal.showValidationMessage('Nemůžete odebrat roli poslednímu administrátorovi.');
-          return false;
-        }
-      }
-      return newRoles;
-    },
+  ...getFuturisticSwalBaseOptions(`Upravit role pro ${user.nickname}`),
+  html: `<div class="swal-form-container"><p class="swal-label font-inter mb-2">Vyberte role:</p>${rolesCheckboxesHtml}</div>`,
+  customClass: { popup: 'futuristic-swal-popup large-swal', htmlContainer: 'futuristic-swal-html-container font-inter swal-form-container-custom-padding' },
+  focusConfirm: false, showCancelButton: true, confirmButtonText: 'Uložit změny', cancelButtonText: 'Zrušit', showLoaderOnConfirm: true,
+  preConfirm: () => {
+    const newRoles: string[] = [];
+    availableRoles.forEach(role => {
+    const checkbox = document.getElementById(`swal-role-${role.replace(/\s+/g, '-')}`) as HTMLInputElement;
+    if (checkbox && checkbox.checked) newRoles.push(role);
+    });
+    if (newRoles.length === 0) { Swal.showValidationMessage('Uživatel musí mít alespoň jednu roli.'); return false; }
+    // Prevent removing admin role from last admin
+    if (user.roles.includes(UserRoles.Administrator) && !newRoles.includes(UserRoles.Administrator)) {
+    const adminUsers = userList.value.filter(u => u.roles.includes(UserRoles.Administrator));
+    if (adminUsers.length === 1 && adminUsers[0].id === user.id) {
+      Swal.showValidationMessage('Nemůžete odebrat roli poslednímu administrátorovi.');
+      return false;
+    }
+    }
+    return newRoles;
+  },
   });
 
   if (isConfirmed && selectedRolesArray) {
-    const success = await updateUserRoles(user.id, selectedRolesArray);
-    if (success) fetchAdminUsers();
+  const success = await updateUserRoles(user.id, selectedRolesArray);
+  if (success) fetchAdminUsers();
   }
 };
 
+/**
+ * Shows confirmation dialog before deleting a user
+ * Prevents deleting the currently logged-in user
+ */
 const confirmDeleteUser = async (user: UserInfo) => {
   if (isCurrentUser(user.id)) { return; }
   Swal.fire({
-    ...getFuturisticSwalBaseOptions('Opravdu smazat uživatele?'),
-    html: `<div class="font-inter">Opravdu si přejete smazat uživatele <strong>${user.nickname}</strong>?<br>Tato akce je nevratná!</div>`,
-    icon: 'warning', showCancelButton: true, confirmButtonText: 'Ano, smazat', cancelButtonText: 'Zrušit', showLoaderOnConfirm: true,
-    preConfirm: async () => {
-      try {
-        const success = await deleteUserService(user.id);
-        if (!success) Swal.showValidationMessage('Nepodařilo se smazat uživatele.');
-        return success;
-      } catch (apiError: any) { Swal.showValidationMessage(`Došlo k chybě: ${apiError.message || 'Neznámá chyba'}`); return false; }
-    },
+  ...getFuturisticSwalBaseOptions('Opravdu smazat uživatele?'),
+  html: `<div class="font-inter">Opravdu si přejete smazat uživatele <strong>${user.nickname}</strong>?<br>Tato akce je nevratná!</div>`,
+  icon: 'warning', showCancelButton: true, confirmButtonText: 'Ano, smazat', cancelButtonText: 'Zrušit', showLoaderOnConfirm: true,
+  preConfirm: async () => {
+    try {
+    const success = await deleteUserService(user.id);
+    if (!success) Swal.showValidationMessage('Nepodařilo se smazat uživatele.');
+    return success;
+    } catch (apiError: any) { Swal.showValidationMessage(`Došlo k chybě: ${apiError.message || 'Neznámá chyba'}`); return false; }
+  },
   }).then((result) => { if (result.isConfirmed && result.value) fetchAdminUsers(); });
 };
 
+/**
+ * Fetches Docker volumes from the server
+ * Only accessible to super admins
+ */
 const fetchVolumes = async () => {
   if (!isSuperAdmin.value) return;
   dockerLoading.volumes = true;
   try {
-    dockerData.volumes = await getVolumes();
+  dockerData.volumes = await getVolumes();
   } catch (e: any) { Swal.fire({...getFuturisticSwalBaseOptions('Chyba'), text: e.message, icon: 'error'}); }
   finally { dockerLoading.volumes = false; }
 };
 
+/**
+ * Deletes a Docker volume after confirmation
+ * @param name The name of the volume to delete
+ */
 const deleteDockerVolume = async (name: string) => {
   Swal.fire({
-    ...getFuturisticSwalBaseOptions(`Smazat volume ${name}?`),
-    text: "Tato akce je nevratná!",
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonText: 'Ano, smazat',
-    cancelButtonText: 'Zrušit',
-    showLoaderOnConfirm: true,
-    preConfirm: async () => {
-      actionLoading[`volume_delete_${name}`] = true;
-      return deleteVolume(name, true).finally(() => actionLoading[`volume_delete_${name}`] = false);
-    }
+  ...getFuturisticSwalBaseOptions(`Smazat volume ${name}?`),
+  text: "Tato akce je nevratná!",
+  icon: 'warning',
+  showCancelButton: true,
+  confirmButtonText: 'Ano, smazat',
+  cancelButtonText: 'Zrušit',
+  showLoaderOnConfirm: true,
+  preConfirm: async () => {
+    actionLoading[`volume_delete_${name}`] = true;
+    return deleteVolume(name, true).finally(() => actionLoading[`volume_delete_${name}`] = false);
+  }
   }).then(result => {
-    if (result.isConfirmed && result.value) {
-      Swal.fire({...getFuturisticSwalBaseOptions('Smazáno'), text: `Volume ${name} bylo smazáno.`, icon: 'success'});
-      fetchVolumes();
-    } else if (result.isConfirmed && !result.value) { /* Chyba byla již zobrazena */ }
+  if (result.isConfirmed && result.value) {
+    Swal.fire({...getFuturisticSwalBaseOptions('Smazáno'), text: `Volume ${name} bylo smazáno.`, icon: 'success'});
+    fetchVolumes();
+  }
   });
 };
 
+/**
+ * Fetches Docker containers from the server
+ * @param all Whether to fetch all containers or only running ones
+ */
 const fetchContainers = async (all: boolean = true) => {
   if (!isSuperAdmin.value) return;
   dockerLoading.containers = true;
   try {
-    dockerData.containers = await getContainers(all);
+  dockerData.containers = await getContainers(all);
   } catch (e: any) { Swal.fire({...getFuturisticSwalBaseOptions('Chyba'), text: e.message, icon: 'error'}); }
   finally { dockerLoading.containers = false; }
 };
 
+/**
+ * Starts a Docker container
+ * @param id Container ID to start
+ */
 const startDockerContainer = async (id: string) => {
   actionLoading[`container_toggle_${id}`] = true;
   try {
-    if (await startContainer(id)) {
-      Swal.fire({...getFuturisticSwalBaseOptions('Úspěch'), text: 'Kontejner spuštěn.', icon: 'success', timer: 1500, showConfirmButton: false});
-      fetchContainers(); // Refresh listu
-    }
-  } catch (e:any) { /* Chyba je již zobrazena v service */ }
+  if (await startContainer(id)) {
+    Swal.fire({...getFuturisticSwalBaseOptions('Úspěch'), text: 'Kontejner spuštěn.', icon: 'success', timer: 1500, showConfirmButton: false});
+    fetchContainers(); // Refresh list
+  }
+  } catch (e:any) { /* Error is already displayed in service */ }
   finally { actionLoading[`container_toggle_${id}`] = false; }
 };
 
+/**
+ * Stops a Docker container
+ * @param id Container ID to stop
+ */
 const stopDockerContainer = async (id: string) => {
   actionLoading[`container_toggle_${id}`] = true;
   try {
-    if (await stopContainer(id)) {
-      Swal.fire({...getFuturisticSwalBaseOptions('Úspěch'), text: 'Kontejner zastaven.', icon: 'success', timer: 1500, showConfirmButton: false});
-      fetchContainers();
-    }
-  } catch (e:any) { /* Chyba je již zobrazena v service */ }
+  if (await stopContainer(id)) {
+    Swal.fire({...getFuturisticSwalBaseOptions('Úspěch'), text: 'Kontejner zastaven.', icon: 'success', timer: 1500, showConfirmButton: false});
+    fetchContainers();
+  }
+  } catch (e:any) { /* Error is already displayed in service */ }
   finally { actionLoading[`container_toggle_${id}`] = false; }
 };
 
+/**
+ * Deletes a Docker container after confirmation
+ * @param id Container ID to delete
+ */
 const deleteDockerContainer = (id: string) => {
    Swal.fire({
-    ...getFuturisticSwalBaseOptions(`Smazat kontejner ${id.substring(0,12)}?`),
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonText: 'Smazat',
-    cancelButtonText: 'Zrušit',
-    showLoaderOnConfirm: true,
-    showLoaderOnDeny: true,
-    preConfirm: async (resultFromSwal) => { // resultFromSwal je true pro confirm, false pro deny, undefined pro escape
-      actionLoading[`container_delete_${id}`] = true;
-      let removeVolumesFlag = true;
-      return deleteContainer(id, removeVolumesFlag).finally(() => actionLoading[`container_delete_${id}`] = false);
-    },
+  ...getFuturisticSwalBaseOptions(`Smazat kontejner ${id.substring(0,12)}?`),
+  icon: 'warning',
+  showCancelButton: true,
+  confirmButtonText: 'Smazat',
+  cancelButtonText: 'Zrušit',
+  showLoaderOnConfirm: true,
+  showLoaderOnDeny: true,
+  preConfirm: async (resultFromSwal) => { // resultFromSwal is true for confirm, false for deny, undefined for escape
+    actionLoading[`container_delete_${id}`] = true;
+    let removeVolumesFlag = true;
+    return deleteContainer(id, removeVolumesFlag).finally(() => actionLoading[`container_delete_${id}`] = false);
+  },
   }).then(result => {
-    if ((result.isConfirmed || result.isDenied) && result.value) { // result.value je výsledek z deleteContainer
-      Swal.fire({...getFuturisticSwalBaseOptions('Smazáno'), text: `Kontejner ${id.substring(0,12)} byl smazán.`, icon: 'success'});
-      fetchContainers();
-    } else if ((result.isConfirmed || result.isDenied) && !result.value) {
-      // Chyba byla již zobrazena v deleteContainer
-    }
+  if ((result.isConfirmed || result.isDenied) && result.value) { // result.value is the result from deleteContainer
+    Swal.fire({...getFuturisticSwalBaseOptions('Smazáno'), text: `Kontejner ${id.substring(0,12)} byl smazán.`, icon: 'success'});
+    fetchContainers();
+  } else if ((result.isConfirmed || result.isDenied) && !result.value) {
+    // Error was already displayed in deleteContainer
+  }
   });
 };
 
+/**
+ * Displays container logs in a modal dialog
+ * @param id Container ID to fetch logs from
+ */
 const viewContainerLogs = async (id: string) => {
   actionLoading[`container_logs_${id}`] = true;
   try {
-    const logs = await getContainerLogs(id, 500);
-    Swal.fire({
-        ...getFuturisticSwalBaseOptions(`Logy kontejneru ${id.substring(0,12)}`),
-        html: `<pre style="text-align: left;" class="server-logs-pre">${logs.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`,
-        width: '90vw',
-        customClass: { 
-            popup: 'futuristic-swal-popup logs-swal',
-            htmlContainer: 'futuristic-swal-html-container font-inter'
-        },
-        confirmButtonText: 'Zavřít'
-    });
+  const logs = await getContainerLogs(id, 500);
+  Swal.fire({
+    ...getFuturisticSwalBaseOptions(`Logy kontejneru ${id.substring(0,12)}`),
+    html: `<pre style="text-align: left;" class="server-logs-pre">${logs.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`,
+    width: '90vw',
+    customClass: { 
+      popup: 'futuristic-swal-popup logs-swal',
+      htmlContainer: 'futuristic-swal-html-container font-inter'
+    },
+    confirmButtonText: 'Zavřít'
+  });
   } catch (e: any) { Swal.fire({...getFuturisticSwalBaseOptions('Chyba'), text: e.message, icon: 'error'}); }
   finally { actionLoading[`container_logs_${id}`] = false; }
 };
 
+/**
+ * Fetches Docker images from the server
+ * @param all Whether to fetch all images or only latest ones
+ */
 const fetchImages = async (all: boolean = false) => {
   if (!isSuperAdmin.value) return;
   dockerLoading.images = true;
   try {
-    dockerData.images = await getImages(all);
+  dockerData.images = await getImages(all);
   } catch (e: any) { Swal.fire({...getFuturisticSwalBaseOptions('Chyba'), text: e.message, icon: 'error'}); }
   finally { dockerLoading.images = false; }
 };
 
+/**
+ * Deletes a Docker image after confirmation
+ * @param id Image ID to delete
+ */
 const deleteDockerImage = (id: string) => {
   Swal.fire({
-    ...getFuturisticSwalBaseOptions(`Smazat image ${id.substring(0,12)}?`),
-    text: "Tato akce může být nevratná a ovlivnit běžící kontejnery, pokud není použito 'force'.",
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonText: 'Ano, smazat',
-    cancelButtonText: 'Zrušit',
-    showLoaderOnConfirm: true,
-    preConfirm: async () => {
-      actionLoading[`image_delete_${id}`] = true;
-      return deleteImage(id, false, false).finally(() => actionLoading[`image_delete_${id}`] = false);
-    }
+  ...getFuturisticSwalBaseOptions(`Smazat image ${id.substring(0,12)}?`),
+  text: "Tato akce může být nevratná a ovlivnit běžící kontejnery, pokud není použito 'force'.",
+  icon: 'warning',
+  showCancelButton: true,
+  confirmButtonText: 'Ano, smazat',
+  cancelButtonText: 'Zrušit',
+  showLoaderOnConfirm: true,
+  preConfirm: async () => {
+    actionLoading[`image_delete_${id}`] = true;
+    return deleteImage(id, false, false).finally(() => actionLoading[`image_delete_${id}`] = false);
+  }
   }).then(result => {
-    if (result.isConfirmed && result.value) {
-      Swal.fire({...getFuturisticSwalBaseOptions('Smazáno'), text: `Image ${id.substring(0,12)} byla smazána.`, icon: 'success'});
-      fetchImages();
-    } else if (result.isConfirmed && !result.value) { /* Chyba byla již zobrazena */ }
+  if (result.isConfirmed && result.value) {
+    Swal.fire({...getFuturisticSwalBaseOptions('Smazáno'), text: `Image ${id.substring(0,12)} byla smazána.`, icon: 'success'});
+    fetchImages();
+  } else if (result.isConfirmed && !result.value) { /* Error was already displayed */ }
   });
 };
 
+/**
+ * Formats byte size to human readable format
+ * @param bytes Raw byte count
+ * @param decimals Number of decimal places
+ */
 const formatBytes = (bytes: number, decimals = 2) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-};
-const getDockerStateColor = (state: string) => {
-    if (state === 'running') return 'success';
-    if (state === 'exited') return 'error';
-    if (state === 'created') return 'info';
-    if (state === 'restarting') return 'warning';
-    return 'grey';
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 };
 
+/**
+ * Returns appropriate color for container state badges
+ */
+const getDockerStateColor = (state: string) => {
+  if (state === 'running') return 'success';
+  if (state === 'exited') return 'error';
+  if (state === 'created') return 'info';
+  if (state === 'restarting') return 'warning';
+  return 'grey';
+};
+
+// Initialize data on component mount
 onMounted(() => {
   if (isSuperAdmin.value) {
-    fetchAdminUsers();
-    if (activeTab.value === 'docker') {
-        if(dockerSubTab.value === 'containers') fetchContainers();
-        else if (dockerSubTab.value === 'images') fetchImages();
-        else if (dockerSubTab.value === 'volumes') fetchVolumes();
-    }
+  fetchAdminUsers();
+  if (activeTab.value === 'docker') {
+    if(dockerSubTab.value === 'containers') fetchContainers();
+    else if (dockerSubTab.value === 'images') fetchImages();
+    else if (dockerSubTab.value === 'volumes') fetchVolumes();
+  }
   }
 });
 
+// Watch for tab changes to load appropriate data
 watch(activeTab, (newTab) => {
-    if (newTab === 'general' && isSuperAdmin.value && userList.value.length === 0) {
-        fetchAdminUsers();
-    } else if (newTab === 'docker' && isSuperAdmin.value) {
-        if(dockerSubTab.value === 'containers' && dockerData.containers.length === 0) fetchContainers();
-        else if (dockerSubTab.value === 'images' && dockerData.images.length === 0) fetchImages();
-        else if (dockerSubTab.value === 'volumes' && dockerData.volumes.length === 0) fetchVolumes();
-    }
+  if (newTab === 'general' && isSuperAdmin.value && userList.value.length === 0) {
+    fetchAdminUsers();
+  } else if (newTab === 'docker' && isSuperAdmin.value) {
+    if(dockerSubTab.value === 'containers' && dockerData.containers.length === 0) fetchContainers();
+    else if (dockerSubTab.value === 'images' && dockerData.images.length === 0) fetchImages();
+    else if (dockerSubTab.value === 'volumes' && dockerData.volumes.length === 0) fetchVolumes();
+  }
 });
+
+// Watch for Docker subtab changes
 watch(dockerSubTab, (newSubTab) => {
-    if (activeTab.value === 'docker' && isSuperAdmin.value) {
-        if(newSubTab === 'containers' && dockerData.containers.length === 0) fetchContainers();
-        else if (newSubTab === 'images' && dockerData.images.length === 0) fetchImages();
-        else if (newSubTab === 'volumes' && dockerData.volumes.length === 0) fetchVolumes();
-    }
+  if (activeTab.value === 'docker' && isSuperAdmin.value) {
+    if(newSubTab === 'containers' && dockerData.containers.length === 0) fetchContainers();
+    else if (newSubTab === 'images' && dockerData.images.length === 0) fetchImages();
+    else if (newSubTab === 'volumes' && dockerData.volumes.length === 0) fetchVolumes();
+  }
 });
 
 </script>
@@ -537,8 +577,6 @@ watch(dockerSubTab, (newSubTab) => {
 :deep(.swal-form-container .swal-label) { display: block; color: var(--v-theme-text-secondary); margin-bottom: .25em; margin-top: .75em; font-size: 0.9rem; }
 :deep(.swal-form-container .futuristic-swal-input) { width: 100%; box-sizing: border-box; }
 :deep(.large-swal) { width: 600px !important; }
-
-/* Odstraněny :deep(.extra-large-swal) a :deep(.very-extra-large-swal), šířka se nastavuje přímo v JS */
 
 :deep(.logs-swal .swal2-html-container) { max-width: 100%; }
 :deep(.server-logs-pre) {

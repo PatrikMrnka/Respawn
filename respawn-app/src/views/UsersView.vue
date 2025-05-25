@@ -1,9 +1,7 @@
 <template>
   <v-container class="futuristic-page">
     <v-card class="pa-4 futuristic-card">
-      <v-card-title class="text-h4 font-oxanium mb-6">
-        Správa uživatelů
-      </v-card-title>
+      <v-card-title class="text-h4 font-oxanium mb-6"> Správa uživatelů </v-card-title>
       <v-progress-linear v-if="loading" indeterminate color="primary"></v-progress-linear>
       <v-alert v-if="error" type="error" prominent class="mb-4 font-inter">
         {{ error }}
@@ -17,12 +15,12 @@
               <th class="text-left font-exo2">Přezdívka</th>
               <th class="text-left font-exo2">Email</th>
               <th class="text-left font-exo2">Role</th>
-              <th class="text-center font-exo2" style="width: 200px;">Akce</th>
+              <th class="text-center font-exo2" style="width: 200px">Akce</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="user in users" :key="user.id">
-              <td class="font-roboto-mono" style="font-size: 0.85rem;">{{ user.id }}</td>
+              <td class="font-roboto-mono" style="font-size: 0.85rem">{{ user.id }}</td>
               <td class="font-inter">{{ user.nickname }}</td>
               <td class="font-inter">{{ user.email }}</td>
               <td class="font-inter">
@@ -39,7 +37,8 @@
               </td>
               <td class="text-center">
                 <v-btn
-                  :icon="mdiPencil" variant="text"
+                  :icon="mdiPencil"
+                  variant="text"
                   size="small"
                   color="warning"
                   @click="openEditUserModal(user)"
@@ -48,7 +47,8 @@
                 >
                 </v-btn>
                 <v-btn
-                  :icon="mdiDelete" variant="text"
+                  :icon="mdiDelete"
+                  variant="text"
                   size="small"
                   color="error"
                   @click="confirmDeleteUser(user)"
@@ -77,32 +77,31 @@ import Swal, { type SweetAlertOptions } from 'sweetalert2'
 import { getAllUsers, updateUserRoles, deleteUser } from '@/services/adminService'
 import { useAuthStore, type UserInfo } from '@/stores/authStore'
 import { UserRoles } from '@/types/enums'
-
-// Explicitní import MDI ikon
 import { mdiPencil, mdiDelete } from '@mdi/js'
 
-interface AdminUserDisplay extends UserInfo {
-  // Rozhraní AdminUserDto z adminService již odpovídá UserInfo
-}
+// State variables
+const users = ref<UserInfo[]>([])  // Array to store all users
+const loading = ref(true)          // Loading state indicator
+const error = ref<string | null>(null)  // Error message if any
+const authStore = useAuthStore()   // Auth store for current user info
 
-const users = ref<AdminUserDisplay[]>([])
-const loading = ref(true)
-const error = ref<string | null>(null)
-const authStore = useAuthStore()
-
+/**
+ * Fetches all users from the server
+ */
 const fetchUsers = async () => {
   loading.value = true
   error.value = null
   try {
-    const fetchedUsers = await getAllUsers();
+    const fetchedUsers = await getAllUsers()
     if (fetchedUsers) {
-      users.value = fetchedUsers.map(u => ({
+      // Map fetched users to the required format
+      users.value = fetchedUsers.map((u) => ({
         id: u.id,
         nickname: u.nickname,
         email: u.email,
         avatarUrl: u.avatarUrl,
         roles: u.roles || [],
-      }));
+      }))
     } else {
       error.value = 'Nepodařilo se načíst uživatele nebo nemáte oprávnění.'
     }
@@ -114,18 +113,32 @@ const fetchUsers = async () => {
   }
 }
 
+// Fetch users when component is mounted
 onMounted(fetchUsers)
 
+/**
+ * Checks if the user ID matches the current logged-in user
+ * @param userId - User ID to check
+ * @returns True if it's the current user
+ */
 const isCurrentUser = (userId: string) => {
   return authStore.user?.id === userId
 }
 
+/**
+ * Gets the color for a role badge based on the role type
+ * @param role - Role name
+ * @returns Color name for the badge
+ */
 const getRoleColor = (role: string) => {
   if (role === UserRoles.Administrator) return 'primary'
   if (role === UserRoles.Spravce) return 'secondary'
   return 'grey-darken-1'
 }
 
+/**
+ * Returns base SweetAlert2 options with futuristic styling
+ */
 const getFuturisticSwalBaseOptions = (): SweetAlertOptions => ({
   background: '#1A2033',
   color: '#E0E0E0',
@@ -143,12 +156,19 @@ const getFuturisticSwalBaseOptions = (): SweetAlertOptions => ({
   },
   buttonsStyling: false,
   heightAuto: false,
-});
+})
 
-const openEditUserModal = async (user: AdminUserDisplay) => {
-  const availableRoles = Object.values(UserRoles);
+/**
+ * Opens a modal dialog to edit user roles
+ * @param user - User object to edit
+ */
+const openEditUserModal = async (user: UserInfo) => {
+  const availableRoles = Object.values(UserRoles)
 
-  const rolesCheckboxesHtml = availableRoles.map(role => `
+  // Create checkboxes for each available role
+  const rolesCheckboxesHtml = availableRoles
+    .map(
+      (role) => `
     <label class="swal-checkbox-label font-inter">
       <input
         type="checkbox"
@@ -159,7 +179,9 @@ const openEditUserModal = async (user: AdminUserDisplay) => {
       >
       ${role}
     </label>
-  `).join('');
+  `,
+    )
+    .join('')
 
   const { value: selectedRolesArray, isConfirmed } = await Swal.fire({
     ...getFuturisticSwalBaseOptions(),
@@ -176,38 +198,48 @@ const openEditUserModal = async (user: AdminUserDisplay) => {
     cancelButtonText: 'Zrušit',
     showLoaderOnConfirm: true,
     preConfirm: () => {
-      const newRoles: string[] = [];
-      availableRoles.forEach(role => {
-        const checkbox = document.getElementById(`swal-role-${role.replace(/\s+/g, '-')}`) as HTMLInputElement;
+      // Collect all checked roles
+      const newRoles: string[] = []
+      availableRoles.forEach((role) => {
+        const checkbox = document.getElementById(
+          `swal-role-${role.replace(/\s+/g, '-')}`,
+        ) as HTMLInputElement
         if (checkbox && checkbox.checked) {
-          newRoles.push(role);
+          newRoles.push(role)
         }
-      });
+      })
+      // Validate that at least one role is selected
       if (newRoles.length === 0) {
-        Swal.showValidationMessage('Uživatel musí mít alespoň jednu roli.');
-        return false;
+        Swal.showValidationMessage('Uživatel musí mít alespoň jednu roli.')
+        return false
       }
-      return newRoles;
+      return newRoles
     },
-  });
+  })
 
+  // Update user roles if confirmed
   if (isConfirmed && selectedRolesArray) {
-    const success = await updateUserRoles(user.id, selectedRolesArray);
+    const success = await updateUserRoles(user.id, selectedRolesArray)
     if (success) {
-      await fetchUsers();
+      await fetchUsers()
     }
   }
 }
 
-const confirmDeleteUser = async (user: AdminUserDisplay) => {
+/**
+ * Shows confirmation dialog and deletes user if confirmed
+ * @param user - User to delete
+ */
+const confirmDeleteUser = async (user: UserInfo) => {
+  // Prevent deleting current user
   if (isCurrentUser(user.id)) {
     Swal.fire({
       ...getFuturisticSwalBaseOptions(),
       icon: 'error',
       titleText: 'Chyba',
       text: 'Nemůžete smazat sám sebe.',
-    });
-    return;
+    })
+    return
   }
 
   Swal.fire({
@@ -221,25 +253,26 @@ const confirmDeleteUser = async (user: AdminUserDisplay) => {
     showLoaderOnConfirm: true,
     preConfirm: async () => {
       try {
-        const success = await deleteUser(user.id);
+        // Attempt to delete the user
+        const success = await deleteUser(user.id)
         if (!success) {
-          Swal.showValidationMessage('Nepodařilo se smazat uživatele. Zkuste to prosím znovu.');
+          Swal.showValidationMessage('Nepodařilo se smazat uživatele. Zkuste to prosím znovu.')
         }
-        return success;
+        return success
       } catch (apiError: any) {
-        console.error('Chyba při mazání uživatele:', apiError);
-        Swal.showValidationMessage(`Došlo k chybě: ${apiError.message || 'Neznámá chyba'}`);
-        return false;
+        console.error('Chyba při mazání uživatele:', apiError)
+        Swal.showValidationMessage(`Došlo k chybě: ${apiError.message || 'Neznámá chyba'}`)
+        return false
       }
     },
     allowOutsideClick: () => !Swal.isLoading(),
   }).then((result) => {
+    // Refresh user list if deletion was successful
     if (result.isConfirmed && result.value) {
-      fetchUsers();
+      fetchUsers()
     }
-  });
+  })
 }
-
 </script>
 
 <style scoped>
@@ -265,7 +298,8 @@ const confirmDeleteUser = async (user: AdminUserDisplay) => {
   background-color: rgba(var(--v-theme-primary-rgb), 0.05) !important;
 }
 
-.futuristic-table td, .futuristic-table th {
+.futuristic-table td,
+.futuristic-table th {
   border-bottom: 1px solid rgba(var(--v-theme-text-primary-rgb), 0.1) !important;
 }
 
@@ -293,7 +327,7 @@ const confirmDeleteUser = async (user: AdminUserDisplay) => {
 .swal-checkbox-label:hover {
   background-color: rgba(var(--v-theme-primary-rgb), 0.1);
 }
-.swal-checkbox-label input[type="checkbox"] {
+.swal-checkbox-label input[type='checkbox'] {
   margin-right: 0.85rem;
   transform: scale(1.1);
   accent-color: var(--v-theme-primary);

@@ -2,18 +2,18 @@
   <v-navigation-drawer
     :model-value="modelValue"
     @update:model-value="emitUpdateModelValue"
-    app class="futuristic-drawer"
+    app
+    class="futuristic-drawer"
     width="280"
   >
     <v-list nav dense>
-
       <v-list-item
         :prepend-icon="mdiHomeOutline"
         title="Domů"
         to="/"
         exact
         class="futuristic-list-item"
-        ></v-list-item>
+      ></v-list-item>
 
       <v-list-item
         v-if="authStore.isLoggedIn"
@@ -21,7 +21,7 @@
         title="Profil"
         to="/profile"
         class="futuristic-list-item"
-        ></v-list-item>
+      ></v-list-item>
 
       <v-list-item
         v-if="authStore.isLoggedIn"
@@ -29,28 +29,29 @@
         title="Servery"
         to="/servers"
         class="futuristic-list-item"
-        ></v-list-item>
+      ></v-list-item>
 
       <v-list-item
         v-if="authStore.isLoggedIn"
-        :prepend-icon="mdiPoll" title="Ankety"
+        :prepend-icon="mdiPoll"
+        title="Ankety"
         to="/polls"
         class="futuristic-list-item"
-        ></v-list-item>
+      ></v-list-item>
 
       <v-list-item
         :prepend-icon="mdiChartLine"
         title="Statistiky"
         to="/statistics"
         class="futuristic-list-item"
-        ></v-list-item>
+      ></v-list-item>
 
       <v-list-item
         :prepend-icon="mdiInformationOutline"
         title="O aplikaci"
         to="/about"
         class="futuristic-list-item"
-        ></v-list-item>
+      ></v-list-item>
 
       <v-divider v-if="isUserAdmin || isUserSpravce" class="my-2"></v-divider>
 
@@ -60,7 +61,7 @@
         title="Administrace"
         to="/admin"
         class="futuristic-list-item admin-link"
-        ></v-list-item>
+      ></v-list-item>
 
       <v-list-item
         v-if="isUserSpravce"
@@ -68,8 +69,7 @@
         title="Uživatelé"
         to="/users"
         class="futuristic-list-item spravce-link"
-        ></v-list-item>
-
+      ></v-list-item>
     </v-list>
 
     <template v-slot:append>
@@ -91,9 +91,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useAuthStore } from '@/stores/authStore';
-import { UserRoles } from '@/types/enums';
+import { computed } from 'vue'
+import { useAuthStore } from '@/stores/authStore'
+import { UserRoles } from '@/types/enums'
 // import { useDisplay } from 'vuetify'; // Již není potřeba pro closeDrawerOnMobile
 import {
   mdiRocketLaunchOutline,
@@ -105,39 +105,38 @@ import {
   mdiShieldCrownOutline,
   mdiAccountGroupOutline,
   mdiLogout,
-  mdiPoll
-} from '@mdi/js';
+  mdiPoll,
+} from '@mdi/js'
 
 const props = defineProps({
-  modelValue: Boolean
-});
+  modelValue: Boolean,
+})
 
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(['update:modelValue'])
 
-const authStore = useAuthStore();
+const authStore = useAuthStore()
 // const { mobile } = useDisplay(); // Již není explicitně potřeba pro zavírání
 
 const emitUpdateModelValue = (value: boolean) => {
-  emit('update:modelValue', value);
-};
+  emit('update:modelValue', value)
+}
 
 const isUserAdmin = computed(() => {
-  return authStore.isLoggedIn && authStore.user?.roles?.includes(UserRoles.Administrator);
-});
+  return authStore.isLoggedIn && authStore.user?.roles?.includes(UserRoles.Administrator)
+})
 
 const isUserSpravce = computed(() => {
-  return authStore.isLoggedIn && authStore.user?.roles?.includes(UserRoles.Spravce);
-});
+  return authStore.isLoggedIn && authStore.user?.roles?.includes(UserRoles.Spravce)
+})
 
 // Funkce closeDrawerOnMobile byla odstraněna, protože drawer se nyní zavírá pouze přes hamburger ikonu
 // Pokud byste chtěli, aby se na mobilu stále zavíral po kliknutí na odkaz, mohli byste ji vrátit a
 // podmíněně ji volat v @click handleru v-list-item.
 
 const handleLogoutAndCloseDrawer = async () => {
-  await authStore.logout();
-  emitUpdateModelValue(false); // Zavřít drawer po odhlášení
-};
-
+  await authStore.logout()
+  emitUpdateModelValue(false) // Zavřít drawer po odhlášení
+}
 </script>
 
 <style scoped>
@@ -149,14 +148,16 @@ const handleLogoutAndCloseDrawer = async () => {
 }
 
 .logo-item .v-list-item-title {
- color: var(--v-theme-primary);
- font-weight: bold;
+  color: var(--v-theme-primary);
+  font-weight: bold;
 }
 
 .futuristic-list-item {
   margin: 4px 8px;
   border-radius: 6px;
-  transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+  transition:
+    background-color 0.2s ease-in-out,
+    color 0.2s ease-in-out;
 }
 
 .futuristic-list-item:hover {
@@ -182,7 +183,7 @@ const handleLogoutAndCloseDrawer = async () => {
 }
 .spravce-link .v-list-item-title,
 .spravce-link.v-list-item--active .v-list-item-title {
-   /* color: var(--v-theme-info); */
+  /* color: var(--v-theme-info); */
 }
 
 .v-list {

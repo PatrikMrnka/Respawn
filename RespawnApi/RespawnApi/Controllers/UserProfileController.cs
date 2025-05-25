@@ -8,33 +8,47 @@ using RespawnApi.Application.Interfaces;
 using RespawnApi.DataAccess.Interfaces;
 using RespawnApi.Domain.Entities;
 using System.Security.Claims;
-using System.Threading.Tasks;
 
 namespace RespawnApi.Controllers
 {
+    /// <summary>
+    /// Controller for managing user profile operations such as retrieving and updating the current user's profile.
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize] // Všechny akce v tomto kontroleru vyžadují autorizaci
+    [Authorize]
     public class UserProfileController : ControllerBase
     {
         private readonly UserManager<IdentityUser> _userManager;
         private readonly IUserProfileRepository _userProfileRepository;
-        private readonly ITokenService _tokenService; // Přidáno pro generování nového tokenu
+        private readonly ITokenService _tokenService;
         private readonly ILogger<UserProfileController> _logger;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="UserProfileController"/> class.
+        /// </summary>
+        /// <param name="userManager">The user manager for identity operations.</param>
+        /// <param name="userProfileRepository">The repository for user profile data access.</param>
+        /// <param name="tokenService">The service for generating authentication tokens.</param>
+        /// <param name="logger">The logger instance.</param>
         public UserProfileController(
             UserManager<IdentityUser> userManager,
             IUserProfileRepository userProfileRepository,
-            ITokenService tokenService, // Přidáno
+            ITokenService tokenService,
             ILogger<UserProfileController> logger)
         {
             _userManager = userManager;
             _userProfileRepository = userProfileRepository;
-            _tokenService = tokenService; // Přidáno
+            _tokenService = tokenService;
             _logger = logger;
         }
 
-        // GET: api/userprofile/me
+        /// <summary>
+        /// Gets the profile of the currently authenticated user.
+        /// </summary>
+        /// <returns>
+        /// An <see cref="IActionResult"/> containing the user's profile information if found; otherwise, an error response.
+        /// </returns>
         [HttpGet("me")]
         [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -57,12 +71,12 @@ namespace RespawnApi.Controllers
             var userProfile = await _userProfileRepository.GetByUserIdAsync(userId);
             if (userProfile == null)
             {
-                _logger.LogWarning($"GetMyProfile: UserProfile pro IdentityUser ID '{userId}' nebyl nalezen. Vytvářím nový, pokud uživatel existuje v Identity.");
-                // Toto by se mělo dít jen pokud UserProfile nebyl vytvořen při registraci
+                _logger.LogWarning(
+                    $"GetMyProfile: UserProfile pro IdentityUser ID '{userId}' nebyl nalezen. Vytvářím nový, pokud uživatel existuje v Identity.");
                 userProfile = new UserProfile
                 {
                     UserId = identityUser.Id,
-                    Nickname = identityUser.UserName ?? "NeznámýUživatel", // Mělo by být vždy nastaveno
+                    Nickname = identityUser.UserName ?? "NeznámýUživatel",
                     AvatarUrl = null
                 };
                 await _userProfileRepository.AddAsync(userProfile);
@@ -82,17 +96,22 @@ namespace RespawnApi.Controllers
             return Ok(userDto);
         }
 
-        // PUT: api/userprofile/me
+        /// <summary>
+        /// Updates the profile of the currently authenticated user.
+        /// </summary>
+        /// <param name="updateDto">The DTO containing updated profile information.</param>
+        /// <returns>
+        /// An <see cref="IActionResult"/> indicating the result of the update operation.
+        /// </returns>
         [HttpPut("me")]
-        [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)] // Vracíme AuthResponseDto s novým tokenem
-        [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status400BadRequest)] // Pro validační chyby nebo jiné chyby
+        [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> UpdateMyProfile([FromBody] UpdateUserProfileDto updateDto)
         {
             if (!ModelState.IsValid)
             {
-                // Vracíme AuthResponseDto pro konzistenci chybových odpovědí
                 var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
                 return BadRequest(new AuthResponseDto { IsSuccess = false, Message = string.Join("; ", errors) });
             }
@@ -113,49 +132,60 @@ namespace RespawnApi.Controllers
             var userProfile = await _userProfileRepository.GetByUserIdAsync(userId);
             if (userProfile == null)
             {
-                // Mělo by být nepravděpodobné, pokud profil vzniká při registraci
-                _logger.LogError($"UpdateMyProfile: UserProfile pro IdentityUser ID '{userId}' nebyl nalezen. Vytvářím nový.");
+                // it should not happen, but if UserProfile is not found, we create a new one
+                _logger.LogError(
+                    $"UpdateMyProfile: UserProfile pro IdentityUser ID '{userId}' nebyl nalezen. Vytvářím nový.");
                 userProfile = new UserProfile
                 {
                     UserId = identityUser.Id,
-                    Nickname = updateDto.Nickname, // Použijeme nový nickname
+                    Nickname = updateDto.Nickname,
                     AvatarUrl = updateDto.AvatarUrl
                 };
-                await _userProfileRepository.AddAsync(userProfile); // Uložíme nový profil
+
+                await _userProfileRepository.AddAsync(userProfile);
             }
 
-
-            // Aktualizace Nickname v IdentityUser (UserName)
             if (identityUser.UserName != updateDto.Nickname)
             {
                 var existingUserWithNewNickname = await _userManager.FindByNameAsync(updateDto.Nickname);
                 if (existingUserWithNewNickname != null && existingUserWithNewNickname.Id != userId)
                 {
-                    _logger.LogWarning($"UpdateMyProfile: Pokus o změnu přezdívky na existující: {updateDto.Nickname} pro uživatele ID '{userId}'.");
-                    return BadRequest(new AuthResponseDto { IsSuccess = false, Message = "Tato přezdívka je již obsazena." });
+                    _logger.LogWarning(
+                        $"UpdateMyProfile: Pokus o změnu přezdívky na existující: {updateDto.Nickname} pro uživatele ID '{userId}'.");
+                    return BadRequest(new AuthResponseDto
+                        { IsSuccess = false, Message = "Tato přezdívka je již obsazena." });
                 }
 
                 var setUserNameResult = await _userManager.SetUserNameAsync(identityUser, updateDto.Nickname);
                 if (!setUserNameResult.Succeeded)
                 {
                     var errors = setUserNameResult.Errors.Select(e => e.Description);
-                    _logger.LogError($"UpdateMyProfile: Nepodařilo se nastavit UserName pro ID '{userId}'. Chyby: {string.Join(", ", errors)}");
-                    return BadRequest(new AuthResponseDto { IsSuccess = false, Message = $"Nepodařilo se aktualizovat přezdívku v systému identity: {string.Join(", ", errors)}" });
+                    _logger.LogError(
+                        $"UpdateMyProfile: Nepodařilo se nastavit UserName pro ID '{userId}'. Chyby: {string.Join(", ", errors)}");
+                    return BadRequest(new AuthResponseDto
+                    {
+                        IsSuccess = false,
+                        Message =
+                            $"Nepodařilo se aktualizovat přezdívku v systému identity: {string.Join(", ", errors)}"
+                    });
                 }
 
-                // Je důležité zavolat UpdateAsync pro aktualizaci NormalizedUserName a SecurityStamp
                 var updateIdentityResult = await _userManager.UpdateAsync(identityUser);
                 if (!updateIdentityResult.Succeeded)
                 {
                     var errors = updateIdentityResult.Errors.Select(e => e.Description);
-                    _logger.LogError($"UpdateMyProfile: Nepodařilo se aktualizovat IdentityUser po změně UserName pro ID '{userId}'. Chyby: {string.Join(", ", errors)}");
-                    return BadRequest(new AuthResponseDto { IsSuccess = false, Message = $"Chyba při finalizaci změny přezdívky: {string.Join(", ", errors)}" });
+                    _logger.LogError(
+                        $"UpdateMyProfile: Nepodařilo se aktualizovat IdentityUser po změně UserName pro ID '{userId}'. Chyby: {string.Join(", ", errors)}");
+                    return BadRequest(new AuthResponseDto
+                    {
+                        IsSuccess = false,
+                        Message = $"Chyba při finalizaci změny přezdívky: {string.Join(", ", errors)}"
+                    });
                 }
             }
 
-            // Aktualizace UserProfile
-            userProfile.Nickname = updateDto.Nickname; // Udržujte konzistentní s IdentityUser.UserName
-            userProfile.AvatarUrl = updateDto.AvatarUrl; // Může být null
+            userProfile.Nickname = updateDto.Nickname;
+            userProfile.AvatarUrl = updateDto.AvatarUrl;
 
             try
             {
@@ -164,12 +194,14 @@ namespace RespawnApi.Controllers
             catch (DbUpdateException ex)
             {
                 _logger.LogError(ex, $"UpdateMyProfile: Chyba při ukládání UserProfile pro ID '{userId}'.");
-                return StatusCode(StatusCodes.Status500InternalServerError, new AuthResponseDto { IsSuccess = false, Message = "Nastala chyba při ukládání profilu." });
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    new AuthResponseDto { IsSuccess = false, Message = "Nastala chyba při ukládání profilu." });
             }
 
-            _logger.LogInformation($"Profil pro uživatele ID '{userId}' (Přezdívka: {updateDto.Nickname}) byl aktualizován.");
+            _logger.LogInformation(
+                $"Profil pro uživatele ID '{userId}' (Přezdívka: {updateDto.Nickname}) byl aktualizován.");
 
-            // Vygenerovat nový token, protože UserName (součást claimů) a SecurityStamp se mohly změnit
+            // generate new token after profile update
             var tokenResponse = await _tokenService.GenerateTokenAsync(identityUser, userProfile);
             tokenResponse.Message = "Profil byl úspěšně aktualizován.";
 

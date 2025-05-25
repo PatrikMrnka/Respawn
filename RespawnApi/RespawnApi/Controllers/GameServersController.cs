@@ -1,20 +1,12 @@
-﻿// File: haha/RespawnApi/RespawnApi/Controllers/GameServersController.cs
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.Logging;
 using RespawnApi.Application.DTOs.GameServer;
 using RespawnApi.Application.Interfaces;
 using RespawnApi.Domain.Entities;
 using RespawnApi.Domain.Enums;
 using RespawnApi.Hubs;
 using RespawnApi.DataAccess.Interfaces;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.Extensions.DependencyInjection; // Potřebné pro IServiceScopeFactory a GetRequiredService
 
 namespace RespawnApi.Controllers
 {
@@ -29,7 +21,7 @@ namespace RespawnApi.Controllers
         private readonly IHubContext<GameServerHub> _gameServerHubContext;
         private readonly ILogger<GameServersController> _logger;
         private readonly IGameServerRepository _gameServerRepository;
-        private readonly IServiceScopeFactory _scopeFactory; // Pro vytváření scope v metodách na pozadí
+        private readonly IServiceScopeFactory _scopeFactory;
         private readonly IGameServerQueryService _gameServerQueryService;
 
         /// <summary>
@@ -120,6 +112,7 @@ namespace RespawnApi.Controllers
             _logger.LogInformation("Endpoint GetGameServers byl zavolán.");
             var servers = await _gameServerRepository.GetAllAsync();
             var dtos = servers?.Where(s => s != null).Select(MapToDto).ToList() ?? new List<GameServerDto>();
+
             return Ok(dtos);
         }
 
@@ -196,7 +189,7 @@ namespace RespawnApi.Controllers
                 // Resolve services from the new scope
                 var scopedRepo = scope.ServiceProvider.GetRequiredService<IGameServerRepository>();
                 var scopedHubContext = scope.ServiceProvider.GetRequiredService<IHubContext<GameServerHub>>();
-                var scopedLogger = scope.ServiceProvider.GetRequiredService<ILogger<GameServersController>>(); // Or a more specific logger if created
+                var scopedLogger = scope.ServiceProvider.GetRequiredService<ILogger<GameServersController>>();
                 var scopedContainerManagementService = scope.ServiceProvider.GetRequiredService<IContainerManagementService>();
 
                 GameServer? serverToUpdate = null; // Initialize to null
@@ -239,7 +232,7 @@ namespace RespawnApi.Controllers
                     if (containerId != null)
                     {
                         serverToUpdate.ContainerId = containerId;
-                        serverToUpdate.IpAddress = "172.20.10.5"; // Default IP for local Docker with host networking
+                        serverToUpdate.IpAddress = "172.20.10.5"; // Default IP for local Docker with host networking - now hardcoded!!!
                         serverToUpdate.Status = ServerStatus.Starting; // Server is starting up within the container
                         serverToUpdate.StatusDetails = "Kontejner vytvořen, server se spouští/instaluje.";
                         scopedLogger.LogInformation("[BG Task - {GameServerId}] Docker kontejner {ContainerId} vytvořen. Stav: {Status}, IP: {IP}, Port: {Port}",
@@ -387,7 +380,6 @@ namespace RespawnApi.Controllers
         [Authorize(Roles = $"{UserRoles.Administrator},{UserRoles.Spravce}")]
         public async Task<ActionResult<string>> GetGameServerLogs(Guid id, [FromQuery] uint tail = 200)
         {
-            // ... (stávající implementace) ...
             _logger.LogInformation("Požadavek na logy pro server {ServerId}, tail {Tail}", id, tail);
             var server = await _gameServerRepository.GetByIdAsync(id);
             if (server == null || string.IsNullOrEmpty(server.ContainerId))
@@ -411,7 +403,6 @@ namespace RespawnApi.Controllers
         [Authorize(Roles = $"{UserRoles.Administrator},{UserRoles.Spravce}")]
         public async Task<IActionResult> StartGameServer(Guid id)
         {
-            // ... (stávající implementace) ...
             _logger.LogInformation("Požadavek na spuštění serveru {ServerId}", id);
             var server = await _gameServerRepository.GetByIdAsync(id);
             if (server == null || string.IsNullOrEmpty(server.ContainerId)) return NotFound(new { message = "Server nebo jeho kontejner nenalezen." });
@@ -441,7 +432,6 @@ namespace RespawnApi.Controllers
         [Authorize(Roles = $"{UserRoles.Administrator},{UserRoles.Spravce}")]
         public async Task<IActionResult> StopGameServer(Guid id)
         {
-            // ... (stávající implementace s Task.Run pro background stop) ...
             _logger.LogInformation("Požadavek na zastavení serveru {ServerId}", id);
             var server = await _gameServerRepository.GetByIdAsync(id);
             if (server == null || string.IsNullOrEmpty(server.ContainerId)) return NotFound(new { message = "Server nebo jeho kontejner nenalezen." });
@@ -501,7 +491,6 @@ namespace RespawnApi.Controllers
         [Authorize(Roles = $"{UserRoles.Administrator},{UserRoles.Spravce}")]
         public async Task<IActionResult> DeleteGameServer(Guid id)
         {
-            // ... (stávající implementace) ...
             _logger.LogInformation("Požadavek na smazání serveru {ServerId}", id);
             var server = await _gameServerRepository.GetByIdAsync(id);
             if (server == null) return NotFound(new { message = $"Server s ID {id} nenalezen." });
@@ -513,7 +502,6 @@ namespace RespawnApi.Controllers
                 {
                     _logger.LogInformation("Pokouším se zastavit kontejner {ContainerId} před smazáním serveru {ServerId}.", server.ContainerId, id);
                     await _containerManagementService.StopContainerAsync(server.ContainerId);
-                    // Give some time for the stop operation to complete if needed, or rely on Force in RemoveContainerAsync
                 }
                 _logger.LogInformation("Mažu kontejner {ContainerId} pro server {ServerId}.", server.ContainerId, id);
                 await _containerManagementService.RemoveContainerAsync(server.ContainerId, true); // true to remove associated volume
