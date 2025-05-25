@@ -1,6 +1,4 @@
-﻿// Application/DTOs/GameServer/GameServerDto.cs
-using System.ComponentModel.DataAnnotations;
-using RespawnApi.Domain.Enums; // Pro GameType a ServerStatus
+﻿using RespawnApi.Domain.Enums;
 
 namespace RespawnApi.Application.DTOs.GameServer
 {
@@ -15,25 +13,5 @@ namespace RespawnApi.Application.DTOs.GameServer
         public string? ContainerId { get; set; }
         public DateTime CreatedAt { get; set; }
         public string? StatusDetails { get; set; }
-    }
-
-    public class CreateGameServerDto
-    {
-        [Required(ErrorMessage = "Název serveru je povinný.")]
-        [StringLength(100, MinimumLength = 3, ErrorMessage = "Název serveru musí mít 3-100 znaků.")]
-        public string Name { get; set; } = string.Empty;
-
-        [Required(ErrorMessage = "Typ hry je povinný.")]
-        public GameType GameType { get; set; }
-
-        [StringLength(255, ErrorMessage = "Extra parametry nesmí být delší než 255 znaků.")]
-        public string? AdditionalGsParams { get; set; }
-    }
-    public class GameServerStatusUpdateDto
-    {
-        public Guid GameServerId { get; set; }
-        public ServerStatus NewOverallStatus { get; set; } // Přejmenováno pro srozumitelnost
-        public string? StatusDetails { get; set; }
-        public string? ErrorMessage { get; set; }
     }
 }

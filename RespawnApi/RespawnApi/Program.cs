@@ -105,7 +105,9 @@ builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddSingleton<IUserPresenceService, UserPresenceService>();
 builder.Services.AddScoped<IGameServerRepository, GameServerRepository>();
-builder.Services.AddSingleton<IDockerService, DockerService>();
+builder.Services.AddScoped<IContainerManagementService, ContainerManagementService>();
+builder.Services.AddScoped<IVolumeManagementService, VolumeManagementService>();
+builder.Services.AddScoped<IImageManagementService, ImageManagementService>();
 builder.Services.AddScoped<IGameServerQueryService, GameServerQueryService>();
 builder.Services.AddHostedService<GameServerStatusMonitorService>();
 

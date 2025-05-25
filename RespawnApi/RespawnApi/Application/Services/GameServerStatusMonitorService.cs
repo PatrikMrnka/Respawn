@@ -40,7 +40,7 @@ namespace RespawnApi.Application.Services
                     using (var scope = _scopeFactory.CreateScope())
                     {
                         var gameServerRepository = scope.ServiceProvider.GetRequiredService<IGameServerRepository>();
-                        var dockerService = scope.ServiceProvider.GetRequiredService<IDockerService>();
+                        var containerManagementService = scope.ServiceProvider.GetRequiredService<IContainerManagementService>();
                         var gameServerHubContext = scope.ServiceProvider.GetRequiredService<IHubContext<GameServerHub>>();
 
                         // Monitorujeme servery, které nejsou definitivně Offline nebo v Chybě (bez kontejneru)
@@ -72,7 +72,7 @@ namespace RespawnApi.Application.Services
                             ServerStatus originalOverallStatus = server.Status;
                             string? originalStatusDetails = server.StatusDetails;
 
-                            string? containerDockerStatus = await dockerService.GetContainerStatusAsync(containerId);
+                            string? containerDockerStatus = await containerManagementService.GetContainerStatusAsync(containerId);
                             ServerStatus newOverallStatus = server.Status;
                             string statusDetails = $"Docker: {containerDockerStatus ?? "neznámý"}";
 

@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR; // Přidáno pro IHubContext
-using RespawnApi.Application.DTOs.DockerAdmin;
+using RespawnApi.Application.DTOs.Docker;
 using RespawnApi.Application.Interfaces;
 using RespawnApi.Domain.Enums;
 using RespawnApi.Hubs; // Přidáno pro GameServerHub
@@ -20,18 +20,24 @@ namespace RespawnApi.Controllers
     [Authorize(Roles = UserRoles.Administrator)]
     public class DockerAdminController : ControllerBase
     {
-        private readonly IDockerService _dockerService;
+        private readonly IContainerManagementService _containerManagementService;
+        private readonly IVolumeManagementService _volumeManagementService;
+        private readonly IImageManagementService _imageManagementService;
         private readonly IGameServerRepository _gameServerRepository; // Přidáno
         private readonly IHubContext<GameServerHub> _gameServerHubContext; // Přidáno
         private readonly ILogger<DockerAdminController> _logger;
 
         public DockerAdminController(
-            IDockerService dockerService,
+            IContainerManagementService containerManagementService,
+            IVolumeManagementService volumeManagementService,
+            IImageManagementService imageManagementService,
             IGameServerRepository gameServerRepository, // Přidána injekce
             IHubContext<GameServerHub> gameServerHubContext, // Přidána injekce
             ILogger<DockerAdminController> logger)
         {
-            _dockerService = dockerService;
+            _containerManagementService = containerManagementService;
+            _volumeManagementService = volumeManagementService;
+            _imageManagementService = imageManagementService;
             _gameServerRepository = gameServerRepository; // Přiřazení
             _gameServerHubContext = gameServerHubContext; // Přiřazení
             _logger = logger;
@@ -41,7 +47,7 @@ namespace RespawnApi.Controllers
         [HttpGet("volumes")]
         public async Task<ActionResult<IEnumerable<DockerVolumeDto>>> GetVolumes()
         {
-            var volumes = await _dockerService.ListVolumesAsync();
+            var volumes = await _volumeManagementService.ListVolumesAsync();
             return Ok(volumes);
         }
 
@@ -49,7 +55,7 @@ namespace RespawnApi.Controllers
         public async Task<IActionResult> DeleteVolume(string volumeName, [FromQuery] bool force = false)
         {
             _logger.LogInformation("Požadavek na smazání volume: {VolumeName}, Force: {Force}", volumeName, force);
-            var success = await _dockerService.RemoveVolumeAsync(volumeName, force);
+            var success = await _volumeManagementService.RemoveVolumeAsync(volumeName, force);
             if (success) return NoContent();
             return BadRequest(new { message = $"Nepodařilo se smazat volume '{volumeName}'." });
         }
@@ -58,7 +64,7 @@ namespace RespawnApi.Controllers
         [HttpGet("containers")]
         public async Task<ActionResult<IEnumerable<DockerContainerDto>>> GetContainers([FromQuery] bool all = true)
         {
-            var containers = await _dockerService.ListContainersAsync(all);
+            var containers = await _containerManagementService.ListContainersAsync(all);
             return Ok(containers);
         }
 
@@ -66,7 +72,7 @@ namespace RespawnApi.Controllers
         public async Task<IActionResult> StartContainer(string containerId)
         {
             _logger.LogInformation("Požadavek na spuštění kontejneru: {ContainerId}", containerId);
-            var success = await _dockerService.StartContainerAsync(containerId);
+            var success = await _containerManagementService.StartContainerAsync(containerId);
             if (success)
             {
                 // Po spuštění kontejneru můžeme chtít aktualizovat stav GameServeru, pokud existuje
@@ -91,7 +97,7 @@ namespace RespawnApi.Controllers
         public async Task<IActionResult> StopContainer(string containerId)
         {
             _logger.LogInformation("Požadavek na zastavení kontejneru: {ContainerId}", containerId);
-            var success = await _dockerService.StopContainerAsync(containerId);
+            var success = await _containerManagementService.StopContainerAsync(containerId);
             if (success)
             {
                 var gameServer = (await _gameServerRepository.GetAllAsync()).FirstOrDefault(gs => gs.ContainerId == containerId);
@@ -119,8 +125,8 @@ namespace RespawnApi.Controllers
             // Najdeme GameServer spojený s tímto kontejnerem PŘED smazáním kontejneru
             var gameServer = (await _gameServerRepository.GetAllAsync()).FirstOrDefault(gs => gs.ContainerId == containerId);
 
-            var success = await _dockerService.RemoveContainerAsync(containerId, removeAssociatedVolume);
-            if (success)
+            var success = await _containerManagementService.RemoveContainerAsync(containerId, removeAssociatedVolume);
+            if (success)    
             {
                 if (gameServer != null)
                 {
@@ -142,7 +148,7 @@ namespace RespawnApi.Controllers
         public async Task<ActionResult<string>> GetContainerLogs(string containerId, [FromQuery] uint tail = 200)
         {
             _logger.LogInformation("Požadavek na logy kontejneru: {ContainerId}, Tail: {Tail}", containerId, tail);
-            var logs = await _dockerService.GetContainerLogsAsync(containerId, null, tail);
+            var logs = await _containerManagementService.GetContainerLogsAsync(containerId, null, tail);
 
             // Assuming logs is a List<string>, we need to check its contents instead of treating it as a single string.
             if (logs.Any(log => log.StartsWith("Chyba:")) || logs.Contains("Kontejner nenalezen.") || logs.Contains("Nepodařilo se získat stream logů."))
@@ -157,7 +163,7 @@ namespace RespawnApi.Controllers
         [HttpGet("images")]
         public async Task<ActionResult<IEnumerable<DockerImageDto>>> GetImages([FromQuery] bool all = false)
         {
-            var images = await _dockerService.ListImagesAsync(all);
+            var images = await _imageManagementService.ListImagesAsync(all);
             return Ok(images);
         }
 
@@ -165,7 +171,7 @@ namespace RespawnApi.Controllers
         public async Task<IActionResult> DeleteImage(string imageId, [FromQuery] bool force = false, [FromQuery] bool pruneChildren = false)
         {
             _logger.LogInformation("Požadavek na smazání image: {ImageId}, Force: {Force}, Prune: {Prune}", imageId, force, pruneChildren);
-            var (success, errorMessage) = await _dockerService.RemoveImageAsync(imageId, force, pruneChildren);
+            var (success, errorMessage) = await _imageManagementService.RemoveImageAsync(imageId, force, pruneChildren);
             if (success) return NoContent();
             return BadRequest(new { message = errorMessage ?? $"Nepodařilo se smazat image '{imageId}'." });
         }

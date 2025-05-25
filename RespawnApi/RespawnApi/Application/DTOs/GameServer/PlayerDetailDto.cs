@@ -2,8 +2,8 @@
 {
     public class PlayerDetailDto
     {
-        public required string Name { get; set; }
-        public int Score { get; set; }
-        public float Duration { get; set; } // Duration in seconds player has been on server
+        public required string Name { get; set; } // Jméno hráče
+        public int Score { get; set; } // Skóre hráče
+        public float Duration { get; set; } // Čas, který hráč strávil na serveru v sekundách
     }
 }

@@ -404,23 +404,15 @@ const stopDockerContainer = async (id: string) => {
 const deleteDockerContainer = (id: string) => {
    Swal.fire({
     ...getFuturisticSwalBaseOptions(`Smazat kontejner ${id.substring(0,12)}?`),
-    text: "Budou smazána i asociovaná anonymní volumes?",
     icon: 'warning',
     showCancelButton: true,
-    confirmButtonText: 'Ano, smazat s volumes',
+    confirmButtonText: 'Smazat',
     cancelButtonText: 'Zrušit',
-    showDenyButton: true,
-    denyButtonText: 'Smazat bez volumes',
     showLoaderOnConfirm: true,
     showLoaderOnDeny: true,
     preConfirm: async (resultFromSwal) => { // resultFromSwal je true pro confirm, false pro deny, undefined pro escape
       actionLoading[`container_delete_${id}`] = true;
-      let removeVolumesFlag = false;
-      if (Swal.getConfirmButton()?.isSameNode(Swal.getDenyButton())) { // Pokud bylo kliknuto na deny
-        removeVolumesFlag = false;
-      } else { // Pokud bylo kliknuto na confirm nebo zavřeno (chováme se jako confirm)
-        removeVolumesFlag = true;
-      }
+      let removeVolumesFlag = true;
       return deleteContainer(id, removeVolumesFlag).finally(() => actionLoading[`container_delete_${id}`] = false);
     },
   }).then(result => {

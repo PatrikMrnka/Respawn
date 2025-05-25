@@ -4,6 +4,7 @@ using RespawnApi.Application.DTOs.GameServer;
 using RespawnApi.Application.Interfaces;
 using RespawnApi.Domain.Entities;
 using RespawnApi.Domain.Enums;
+using RespawnApi.Application.Utils; // <-- Přidat using pro BinaryDataParser
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,8 +26,7 @@ namespace RespawnApi.Application.Services.Strategies
         private static readonly byte A2S_INFO_RESPONSE_HEADER_GOLDSOURCE_OLD = 0x49; // 'I'
         private static readonly byte A2S_PLAYER_RESPONSE_HEADER = 0x44; // 'D'
 
-        private int _parserOffset;
-
+        // _parserOffset se již nebude používat jako field třídy, ale bude lokální proměnnou v parserech
 
         public GameType SupportedGameType => GameType.CounterStrike;
 
@@ -65,88 +65,42 @@ namespace RespawnApi.Application.Services.Strategies
             }
         }
 
-        private string ReadNullTerminatedString(byte[] buffer, Encoding encoding)
-        {
-            int end = _parserOffset;
-            while (end < buffer.Length && buffer[end] != 0x00)
-            {
-                end++;
-            }
-            if (end >= buffer.Length && (buffer.Length == 0 || buffer[buffer.Length - 1] != 0x00))
-            {
-                _logger.LogWarning("ReadNullTerminatedString: String not null-terminated or extends beyond buffer. Offset: {Offset}, BufferLength: {Length}", _parserOffset, buffer.Length);
-                string partialResult = encoding.GetString(buffer, _parserOffset, buffer.Length - _parserOffset);
-                _parserOffset = buffer.Length;
-                return partialResult;
-            }
-            string result = encoding.GetString(buffer, _parserOffset, end - _parserOffset);
-            _parserOffset = end + 1;
-            return result;
-        }
-
-        private byte ReadByte(byte[] buffer)
-        {
-            if (_parserOffset >= buffer.Length) throw new IndexOutOfRangeException($"Attempt to read byte at offset {_parserOffset} beyond buffer length {buffer.Length}.");
-            byte result = buffer[_parserOffset];
-            _parserOffset++;
-            return result;
-        }
-
-        private float ReadFloat(byte[] buffer)
-        {
-            if (_parserOffset + 4 > buffer.Length) throw new IndexOutOfRangeException("Buffer too short to read Float.");
-            float result = BitConverter.ToSingle(buffer, _parserOffset);
-            _parserOffset += 4;
-            return result;
-        }
-        private int ReadInt32LittleEndian(byte[] buffer)
-        {
-            if (_parserOffset + 4 > buffer.Length) throw new IndexOutOfRangeException("Buffer too short to read Int32.");
-            int result = BitConverter.ToInt32(buffer, _parserOffset);
-            _parserOffset += 4;
-            return result;
-        }
-
-
         private GameServerDetailDto? ParseA2SInfo_GoldSource_TypeI_Variant(byte[] buffer, GameServerDto basicServerInfo)
         {
-            _parserOffset = 0;
+            int parserOffset = 0; // Lokální offset pro tuto metodu
 
             if (buffer.Length < 6 || !buffer.Take(4).SequenceEqual(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF }) || buffer[4] != A2S_INFO_RESPONSE_HEADER_GOLDSOURCE_OLD)
             {
                 _logger.LogError("Invalid A2S_INFO GoldSource Type I (0x49) header or insufficient data. Header: {HeaderByte}", buffer.Length > 4 ? buffer[4] : (byte)0);
                 return null;
             }
-            _parserOffset = 5;
+            parserOffset = 5;
 
             try
             {
-                // According to Wireshark: FFFFFFFF 49 Name\0 Map\0 Folder\0 Game\0 Players(byte) 00 00 MaxPlayers(byte) Protocol(byte) ServerType(char) Env(char) Visibility(byte) VAC(byte) [Version\0] [EDF...]
-                // The first string is the Server Address:Port, but some servers (like the user's) send Server Name directly.
-                // We will assume the user's server structure is: Name\0Map\0Folder\0GameDescription\0...
-                string serverName = ReadNullTerminatedString(buffer, Encoding.UTF8); // Using UTF8, might need adjustment for specific server encodings
-                string mapName = ReadNullTerminatedString(buffer, Encoding.UTF8);
-                string folder = ReadNullTerminatedString(buffer, Encoding.UTF8);
-                string gameDescription = ReadNullTerminatedString(buffer, Encoding.UTF8);
+                // Použití UTF8, zvažte Windows-1250 pro CS 1.6 s českými znaky
+                Encoding gameEncoding = Encoding.UTF8;
+                try { gameEncoding = Encoding.GetEncoding("Windows-1250"); } catch { /* Fallback to UTF8 if not supported */ }
 
-                byte playerCount = ReadByte(buffer);
-                // Wireshark showed: 0a (players) 00 00 10 (max_players) 00 (protocol)
-                // This structure is unusual. Standard is usually players, max_players, protocol directly.
-                // The two 0x00 bytes are unexpected in typical A2S_INFO_OLD.
-                // Let's try to read them as they appeared in the user's Wireshark.
-                byte unknownByte1 = ReadByte(buffer); // Potentially 0x00
-                byte unknownByte2 = ReadByte(buffer); // Potentially 0x00
-                byte maxPlayers = ReadByte(buffer);
-                byte protocol = ReadByte(buffer);
 
-                char serverTypeChar = (char)ReadByte(buffer);
-                char environmentChar = (char)ReadByte(buffer);
-                byte visibility = ReadByte(buffer);
-                byte vacEnabled = ReadByte(buffer);
+                string serverName = BinaryDataParser.ReadNullTerminatedString(buffer, ref parserOffset, gameEncoding, _logger);
+                string mapName = BinaryDataParser.ReadNullTerminatedString(buffer, ref parserOffset, gameEncoding, _logger);
+                string folder = BinaryDataParser.ReadNullTerminatedString(buffer, ref parserOffset, gameEncoding, _logger);
+                string gameDescription = BinaryDataParser.ReadNullTerminatedString(buffer, ref parserOffset, gameEncoding, _logger);
+
+                byte playerCount = BinaryDataParser.ReadByte(buffer, ref parserOffset);
+                BinaryDataParser.ReadByte(buffer, ref parserOffset); // Skip unknownByte1 (0x00)
+                BinaryDataParser.ReadByte(buffer, ref parserOffset); // Skip unknownByte2 (0x00)
+                byte maxPlayers = BinaryDataParser.ReadByte(buffer, ref parserOffset);
+                byte protocol = BinaryDataParser.ReadByte(buffer, ref parserOffset);
+
+                char serverTypeChar = (char)BinaryDataParser.ReadByte(buffer, ref parserOffset);
+                char environmentChar = (char)BinaryDataParser.ReadByte(buffer, ref parserOffset);
+                byte visibility = BinaryDataParser.ReadByte(buffer, ref parserOffset);
+                byte vacEnabled = BinaryDataParser.ReadByte(buffer, ref parserOffset);
 
                 _logger.LogDebug("Parsed A2S_INFO_OLD: Name='{sName}', Map='{mName}', Folder='{fld}', Game='{gDesc}', Players={pc}/{mp}, Proto={prot}, Type='{st}', Env='{env}', Vis={vis}, VAC={vac}",
                     serverName, mapName, folder, gameDescription, playerCount, maxPlayers, protocol, serverTypeChar, environmentChar, visibility, vacEnabled);
-
 
                 return new GameServerDetailDto
                 {
@@ -169,7 +123,7 @@ namespace RespawnApi.Application.Services.Strategies
             }
             catch (IndexOutOfRangeException ex)
             {
-                _logger.LogError(ex, "Error parsing A2S_INFO GoldSource Type I (0x49) response: Index out of range. Buffer length: {BufferLength}, CurrentOffset: {Offset}", buffer.Length, _parserOffset);
+                _logger.LogError(ex, "Error parsing A2S_INFO GoldSource Type I (0x49) response: Index out of range. Buffer length: {BufferLength}, CurrentOffset: {Offset}", buffer.Length, parserOffset);
                 return null;
             }
             catch (Exception ex)
@@ -182,31 +136,36 @@ namespace RespawnApi.Application.Services.Strategies
         private List<PlayerDetailDto> ParseA2SPlayer_GoldSource(byte[] buffer)
         {
             var players = new List<PlayerDetailDto>();
-            _parserOffset = 0;
+            int parserOffset = 0;
 
             if (buffer.Length < 6 || !buffer.Take(4).SequenceEqual(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF }) || buffer[4] != A2S_PLAYER_RESPONSE_HEADER)
             {
                 _logger.LogError("Invalid A2S_PLAYER GoldSource header or insufficient data. Header: {HeaderByte}", buffer.Length > 4 ? buffer[4] : (byte)0);
                 return players;
             }
-            _parserOffset = 5;
+            parserOffset = 5;
 
             try
             {
-                byte playerCount = ReadByte(buffer);
+                byte playerCount = BinaryDataParser.ReadByte(buffer, ref parserOffset);
                 _logger.LogDebug("A2S_PLAYER: Reported player count: {PlayerCount}", playerCount);
+
+                // Použití UTF8, zvažte Windows-1250 pro CS 1.6 s českými znaky
+                Encoding gameEncoding = Encoding.UTF8;
+                try { gameEncoding = Encoding.GetEncoding("Windows-1250"); } catch { /* Fallback to UTF8 */ }
+
 
                 for (int i = 0; i < playerCount; i++)
                 {
-                    if (_parserOffset + 9 > buffer.Length && i < playerCount)
+                    if (parserOffset + 9 > buffer.Length && i < playerCount)
                     {
-                        _logger.LogWarning("A2S_PLAYER: Buffer potentially too short for full player entry {PlayerNum}/{TotalPlayers}. Offset: {Offset}, Remaining: {Remaining}", i + 1, playerCount, _parserOffset, buffer.Length - _parserOffset);
+                        _logger.LogWarning("A2S_PLAYER: Buffer potentially too short for full player entry {PlayerNum}/{TotalPlayers}. Offset: {Offset}, Remaining: {Remaining}", i + 1, playerCount, parserOffset, buffer.Length - parserOffset);
                         break;
                     }
-                    byte index = ReadByte(buffer);
-                    string name = ReadNullTerminatedString(buffer, Encoding.UTF8);
-                    int score = ReadInt32LittleEndian(buffer);
-                    float duration = ReadFloat(buffer);
+                    byte index = BinaryDataParser.ReadByte(buffer, ref parserOffset);
+                    string name = BinaryDataParser.ReadNullTerminatedString(buffer, ref parserOffset, gameEncoding, _logger);
+                    int score = BinaryDataParser.ReadInt32LittleEndian(buffer, ref parserOffset);
+                    float duration = BinaryDataParser.ReadFloatLittleEndian(buffer, ref parserOffset); // Použití správné metody
 
                     if (!string.IsNullOrWhiteSpace(name))
                     {
@@ -222,13 +181,79 @@ namespace RespawnApi.Application.Services.Strategies
             }
             catch (IndexOutOfRangeException ex)
             {
-                _logger.LogError(ex, "Error parsing A2S_PLAYER GoldSource response: Index out of range. Buffer length: {BufferLength}, CurrentOffset: {Offset}", buffer.Length, _parserOffset);
+                _logger.LogError(ex, "Error parsing A2S_PLAYER GoldSource response: Index out of range. Buffer length: {BufferLength}, CurrentOffset: {Offset}", buffer.Length, parserOffset);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error parsing A2S_PLAYER GoldSource response. Buffer length: {BufferLength}", buffer.Length);
             }
             return players;
+        }
+
+        /// <summary>
+        /// Asynchronously gets player information from the server using A2S_PLAYER protocol.
+        /// Handles challenge-response mechanism.
+        /// </summary>
+        /// <param name="targetEndpoint">The IPEndPoint of the game server.</param>
+        /// <param name="gameType">The type of the game (used for logging/context, not directly for A2S_PLAYER logic here).</param>
+        /// <returns>A list of PlayerDetailDto, or an empty list if query fails or no players.</returns>
+        private async Task<List<PlayerDetailDto>> GetA2SPlayerInfoAsync(IPEndPoint targetEndpoint, GameType gameType)
+        {
+            var players = new List<PlayerDetailDto>();
+            _logger.LogInformation("A2SGoldSourceStrategy: Attempting A2S_PLAYER query for {TargetEndpoint}, GameType: {GameType}", targetEndpoint, gameType);
+
+            // Step 1: Send initial A2S_PLAYER request to get challenge
+            // Payload: 0xFFFFFFFF 0x55 0xFFFFFFFF (0x55 is A2S_PLAYER, last 4 bytes are challenge, initially -1)
+            byte[]? playerResponseBytes = await SendAndReceiveUdpPacketAsync(targetEndpoint, A2S_PLAYER_REQUEST_PAYLOAD_INITIAL);
+
+            if (playerResponseBytes == null || playerResponseBytes.Length < 5)
+            {
+                _logger.LogWarning("A2SGoldSourceStrategy: No/short response for initial A2S_PLAYER from {TargetEndpoint}", targetEndpoint);
+                return players; // Return empty list
+            }
+
+            // Step 2: Check if server responded with a challenge
+            if (playerResponseBytes[4] == A2S_CHALLENGE_RESPONSE_HEADER) // 'A'
+            {
+                _logger.LogInformation("A2SGoldSourceStrategy: Received A2S_CHALLENGE for A2S_PLAYER from {TargetEndpoint}", targetEndpoint);
+                if (playerResponseBytes.Length < 9) // Header (5 bytes) + Challenge (4 bytes)
+                {
+                    _logger.LogWarning("A2SGoldSourceStrategy: A2S_CHALLENGE response for players from {TargetEndpoint} is too short (length {Length}) to contain a challenge number.", targetEndpoint, playerResponseBytes.Length);
+                    return players; // Return empty list
+                }
+
+                // Construct new request with the challenge
+                // Payload: 0xFFFFFFFF 0x55 <challenge_bytes>
+                byte[] challenge = playerResponseBytes.Skip(5).Take(4).ToArray();
+                List<byte> playerRequestWithChallengeList = new List<byte> { 0xFF, 0xFF, 0xFF, 0xFF, 0x55 };
+                playerRequestWithChallengeList.AddRange(challenge);
+
+                _logger.LogDebug("A2SGoldSourceStrategy: Sending A2S_PLAYER request with challenge to {TargetEndpoint}", targetEndpoint);
+                playerResponseBytes = await SendAndReceiveUdpPacketAsync(targetEndpoint, playerRequestWithChallengeList.ToArray());
+
+                if (playerResponseBytes == null || playerResponseBytes.Length < 5)
+                {
+                    _logger.LogWarning("A2SGoldSourceStrategy: No/short response for A2S_PLAYER with challenge from {TargetEndpoint}", targetEndpoint);
+                    return players; // Return empty list
+                }
+            }
+            // If the first response was not a challenge, but also not a player list, it's an issue.
+            // However, GoldSource servers typically send a challenge for A2S_PLAYER if they support it.
+            // If they don't send a challenge and directly send player data (uncommon for initial 0xFFFFFFFF challenge),
+            // this logic might need adjustment. For now, we assume challenge or direct player list.
+
+            // Step 3: Parse the A2S_PLAYER response
+            if (playerResponseBytes[4] == A2S_PLAYER_RESPONSE_HEADER) // 'D'
+            {
+                _logger.LogInformation("A2SGoldSourceStrategy: Received A2S_PLAYER response (Header 0x44) from {TargetEndpoint}. Parsing...", targetEndpoint);
+                return ParseA2SPlayer_GoldSource(playerResponseBytes);
+            }
+            else
+            {
+                _logger.LogWarning("A2SGoldSourceStrategy: Received unexpected header 0x{HeaderByte:X2} for A2S_PLAYER response from {TargetEndpoint}. Expected 0x44 (or 0x41 for challenge).", playerResponseBytes[4], targetEndpoint);
+            }
+
+            return players; // Return empty list if parsing fails or unexpected header
         }
 
         public async Task<GameServerDetailDto?> GetServerDetailsAsync(GameServer serverEntity, GameServerDto basicDto)
@@ -260,7 +285,6 @@ namespace RespawnApi.Application.Services.Strategies
 
             if (targetEndpoint == null) return CreateFallbackDto(basicDto, "Nepodařilo se vytvořit koncový bod pro dotaz.");
 
-
             byte[]? responseBytes = await SendAndReceiveUdpPacketAsync(targetEndpoint, A2S_INFO_REQUEST_PAYLOAD);
             if (responseBytes == null || responseBytes.Length < 5)
             {
@@ -289,11 +313,11 @@ namespace RespawnApi.Application.Services.Strategies
             {
                 parsedInfo = ParseA2SInfo_GoldSource_TypeI_Variant(responseBytes, basicDto);
             }
-            // Add handling for 0x6D ('m') if needed, potentially calling a different parser
-            // else if (responseBytes[4] == A2S_INFO_RESPONSE_HEADER_GOLDSOURCE_NEW) { ... }
+            // Zde by mohla být logika pro další typy hlaviček, např. 0x6D
+            // else if (responseBytes[4] == A2S_INFO_RESPONSE_HEADER_GOLDSOURCE_NEW) { ... } 
             else
             {
-                _logger.LogWarning("A2SGoldSourceStrategy: Received unexpected response header 0x{HeaderByte:X2} from {TargetEndpoint} instead of A2S_INFO (0x49 or 0x6D).", responseBytes[4], targetEndpoint);
+                _logger.LogWarning("A2SGoldSourceStrategy: Received unexpected response header 0x{HeaderByte:X2} from {TargetEndpoint} instead of A2S_INFO (0x49).", responseBytes[4], targetEndpoint);
                 return CreateFallbackDto(basicDto, $"Neočekávaná A2S odpověď: 0x{responseBytes[4]:X2}.");
             }
 
@@ -310,59 +334,6 @@ namespace RespawnApi.Application.Services.Strategies
             }
 
             return parsedInfo;
-        }
-
-        private async Task<List<PlayerDetailDto>> GetA2SPlayerInfoAsync(IPEndPoint targetEndpoint, GameType gameType)
-        {
-            var players = new List<PlayerDetailDto>();
-            _logger.LogInformation("Attempting A2S_PLAYER query for {TargetEndpoint}", targetEndpoint);
-
-            byte[]? playerResponseBytes = await SendAndReceiveUdpPacketAsync(targetEndpoint, A2S_PLAYER_REQUEST_PAYLOAD_INITIAL);
-
-            if (playerResponseBytes == null || playerResponseBytes.Length < 5)
-            {
-                _logger.LogWarning("No/short response for initial A2S_PLAYER from {TargetEndpoint}", targetEndpoint);
-                return players;
-            }
-
-            if (playerResponseBytes[4] == A2S_CHALLENGE_RESPONSE_HEADER)
-            {
-                _logger.LogInformation("Received A2S_CHALLENGE for A2S_PLAYER from {TargetEndpoint}", targetEndpoint);
-                if (playerResponseBytes.Length < 9)
-                {
-                    _logger.LogWarning("A2S_CHALLENGE for players from {TargetEndpoint} is too short.", targetEndpoint);
-                    return players;
-                }
-
-                byte[] challenge = playerResponseBytes.Skip(5).Take(4).ToArray();
-                byte[] playerRequestWithChallenge = A2S_PLAYER_REQUEST_PAYLOAD_INITIAL.Take(5)
-                                                    .Concat(challenge)
-                                                    .ToArray();
-
-                playerResponseBytes = await SendAndReceiveUdpPacketAsync(targetEndpoint, playerRequestWithChallenge);
-
-                if (playerResponseBytes == null || playerResponseBytes.Length < 5)
-                {
-                    _logger.LogWarning("No/short response for A2S_PLAYER with challenge from {TargetEndpoint}", targetEndpoint);
-                    return players;
-                }
-            }
-            else
-            {
-                _logger.LogWarning("Expected A2S_CHALLENGE for A2S_PLAYER from {TargetEndpoint}, but got header 0x{Header:X2}", targetEndpoint, playerResponseBytes[4]);
-                return players;
-            }
-
-            if (playerResponseBytes[4] == A2S_PLAYER_RESPONSE_HEADER)
-            {
-                _logger.LogInformation("Received A2S_PLAYER response from {TargetEndpoint}. Parsing...", targetEndpoint);
-                return ParseA2SPlayer_GoldSource(playerResponseBytes);
-            }
-            else
-            {
-                _logger.LogWarning("Received unexpected header 0x{HeaderByte:X2} for A2S_PLAYER from {TargetEndpoint}", playerResponseBytes[4], targetEndpoint);
-            }
-            return players;
         }
 
         private GameServerDetailDto CreateFallbackDto(GameServerDto basicInfo, string a2sStatusDetail)

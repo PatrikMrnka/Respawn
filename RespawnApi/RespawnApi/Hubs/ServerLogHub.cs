@@ -16,7 +16,7 @@ namespace RespawnApi.Hubs
     [Authorize(Roles = $"{UserRoles.Administrator},{UserRoles.Spravce}")]
     public class ServerLogHub : Hub
     {
-        private readonly IDockerService _dockerService;
+        private readonly IContainerManagementService _containerManagementService;
         private readonly IGameServerRepository _gameServerRepository;
         private readonly ILogger<ServerLogHub> _logger;
         private readonly IHubContext<ServerLogHub> _hubContext; // Injektovaný IHubContext
@@ -25,12 +25,12 @@ namespace RespawnApi.Hubs
         private static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, CancellationTokenSource>> _activeLogStreams = new();
 
         public ServerLogHub(
-            IDockerService dockerService,
+            IContainerManagementService containerManagementService,
             IGameServerRepository gameServerRepository,
             ILogger<ServerLogHub> logger,
             IHubContext<ServerLogHub> hubContext) // Injektovat IHubContext
         {
-            _dockerService = dockerService;
+            _containerManagementService = containerManagementService;
             _gameServerRepository = gameServerRepository;
             _logger = logger;
             _hubContext = hubContext; // Přiřadit injektovaný IHubContext
@@ -85,7 +85,7 @@ namespace RespawnApi.Hubs
                 try
                 {
                     // Použijeme _hubContext pro odeslání zprávy klientovi
-                    await _dockerService.StreamContainerLogsAsync(containerId, async (logLine) =>
+                    await _containerManagementService.StreamContainerLogsAsync(containerId, async (logLine) =>
                     {
                         if (!cts.Token.IsCancellationRequested)
                         {
