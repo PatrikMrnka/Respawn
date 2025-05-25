@@ -106,7 +106,7 @@ const handleLogout = async () => {
 
 .futuristic-btn {
   background: linear-gradient(45deg, var(--v-theme-primary), var(--v-theme-secondary)) !important;
-  color: #0D1117 !important;
+  color: aliceblue !important;
   border: none;
   box-shadow: 0 2px 8px rgba(var(--v-theme-primary-rgb), 0.4);
 }

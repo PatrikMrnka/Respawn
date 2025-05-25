@@ -17,7 +17,7 @@
     <v-card v-if="serverDetails && !loading && !apiError" class="pa-md-6 pa-4 futuristic-card server-detail-card">
       <v-row align="center">
         <v-col cols="12" md="auto">
-           <v-icon :icon="getGameIcon(serverDetails.gameType)" size="64" :color="getOverallStatusColor(serverDetails.status)" class="mr-4 server-icon"></v-icon>
+           <v-icon :icon="getGameIcon(serverDetails?.gameType)" size="64" :color="getOverallStatusColor(serverDetails.status)" class="mr-4 server-icon"></v-icon>
         </v-col>
         <v-col>
           <v-card-title class="text-h3 font-oxanium page-title mb-0 pb-0">
@@ -158,12 +158,10 @@
 import { ref, onMounted, computed, onBeforeUnmount, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getGameServerDetails, type GameServerDetailDtoFE, type PlayerDetailDtoFE } from '@/services/gameServerService';
-import { GameType, ServerStatus, UserRoles } from '@/types/enums';
 import { useAuthStore } from '@/stores/authStore';
-import Swal from 'sweetalert2';
+import Swal, { type SweetAlertOptions } from 'sweetalert2';
 import { signalRService } from '@/services/signalrService'; // For A2S/Status updates
 import { serverLogSignalr } from '@/services/serverLogSignalrService'; // For live logs
-import type { GameServerDto as BasicGameServerDto, GameServerStatusUpdateDtoFE as BasicStatusUpdateDto } from '@/views/ServersView.txt';
 // Removed getContainerLogs as we are implementing live logs
 import Convert from 'ansi-to-html'; // For formatting ANSI in logs
 
@@ -173,9 +171,9 @@ import {
   mdiPlayCircleOutline, mdiStopCircleOutline, mdiDelete, mdiAlertCircleOutline
   // mdiConsoleLine removed as it's replaced by live logs button
 } from '@mdi/js';
+import { GameType, ServerStatus, UserRoles } from '@/types/enums';
+import type { GameServerDto, GameServerStatusUpdateDtoFE as BasicStatusUpdateDto } from '@/components/ServerCard.vue';
 
-interface GameServerDto extends BasicGameServerDto {}
-interface GameServerStatusUpdateDtoFE extends BasicStatusUpdateDto {}
 
 const route = useRoute();
 const router = useRouter();
@@ -290,7 +288,7 @@ const handleReceiveGameServerUpdate = (updatedServer: GameServerDetailDtoFE | Ga
   }
 };
 
-const handleReceiveGameServerStatusUpdate = (statusUpdate: GameServerStatusUpdateDtoFE) => {
+const handleReceiveGameServerStatusUpdate = (statusUpdate: BasicStatusUpdateDto) => {
   if (statusUpdate.gameServerId === serverId.value && serverDetails.value) {
     serverDetails.value.status = statusUpdate.newOverallStatus;
     serverDetails.value.statusDetails = statusUpdate.statusDetails || serverDetails.value.statusDetails;
@@ -385,7 +383,7 @@ const isActionDisabled = (status: ServerStatus): boolean => {
     return isLoadingStatus(status) || status === ServerStatus.Unknown;
 };
 
-const getFuturisticSwalBaseOptions = (title: string): Swal.SweetAlertOptions => ({
+const getFuturisticSwalBaseOptions = (title: string): SweetAlertOptions => ({
   titleText: title, background: '#1A2033', color: '#E0E0E0',
   confirmButtonColor: '#00E0FF', cancelButtonColor: '#FF5252',
   customClass: {

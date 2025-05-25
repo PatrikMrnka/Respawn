@@ -28,17 +28,6 @@
                 </template>
               </v-img>
             </v-avatar>
-            <v-file-input
-              v-model="avatarFile"
-              label="Změnit avatar"
-              prepend-icon=""
-              :prepend-inner-icon="mdiImage" variant="outlined"
-              dense
-              accept="image/*"
-              @change="onFileChange"
-              class="mb-4 futuristic-input"
-            ></v-file-input>
-             <small class="text-grey font-inter">Nahráním nového obrázku se změní URL avataru.</small>
           </v-col>
 
           <v-col cols="12" md="8">
@@ -280,7 +269,16 @@ const handleProfileUpdate = async () => {
     const updatedUser = await updateUserProfile(payload);
     if (updatedUser) {
       // SweetAlert pro úspěch je již v profileService
-      userProfile.value = { ...authStore.user }; // Aktualizujeme lokální userProfile z authStore, který byl aktualizován
+      // Ensure all required properties are present before assignment
+      if (authStore.user && authStore.user.id && authStore.user.nickname && authStore.user.email && authStore.user.roles) {
+        userProfile.value = {
+          id: authStore.user.id,
+          nickname: authStore.user.nickname,
+          email: authStore.user.email,
+          avatarUrl: authStore.user.avatarUrl,
+          roles: authStore.user.roles
+        };
+      }
       editableProfile.nickname = updatedUser.nickname;
       editableProfile.avatarUrl = updatedUser.avatarUrl || '';
       avatarFile.value = []; // Reset file input
@@ -295,7 +293,7 @@ const handleProfileUpdate = async () => {
     Swal.fire({
         icon: 'error',
         titleText: 'Chyba aktualizace',
-        text: error.value,
+        text: error.value || 'Neznámá chyba',
         background: '#1A2033',
         color: '#E0E0E0',
         confirmButtonColor: '#00E0FF',

@@ -60,8 +60,8 @@ export const displayLoginModal = async (): Promise<{
     `,
     focusConfirm: false,
     showCancelButton: true,
-    confirmButtonText: 'Prihlasit se',
-    cancelButtonText: 'Zrusit',
+    confirmButtonText: 'Přihlásit se',
+    cancelButtonText: 'Zrušit',
     allowOutsideClick: () => !Swal.isLoading(),
     showLoaderOnConfirm: true,
     didOpen: () => {
@@ -108,7 +108,7 @@ export const displayLoginModal = async (): Promise<{
         return data
       } catch (error) {
         console.error('Login API chyba:', error)
-        Swal.showValidationMessage('Doslo k chybe pri komunikaci se serverem.')
+        Swal.showValidationMessage('Došlo k chybě při komunikaci se serverem.')
         return false
       }
     },
@@ -118,7 +118,7 @@ export const displayLoginModal = async (): Promise<{
     const authData = formValues as AuthResponse
     authStore.setAuthData(authData.token, authData.userInfo, authData.expiresAt)
     Swal.fire({
-      ...getFuturisticSwalOptions('Uspech!'),
+      ...getFuturisticSwalOptions('Úspěch!!'),
       icon: 'success',
       text: `Vitej zpet, ${authData.userInfo.nickname}!`,
       timer: 2000,
@@ -139,7 +139,7 @@ export const displayRegisterModal = async (): Promise<{
     ...getFuturisticSwalOptions('Registrace'),
     html: `
       <div class="swal-form-container">
-        <label for="swal-reg-nickname" class="swal-label font-inter">Prezdivka</label>
+        <label for="swal-reg-nickname" class="swal-label font-inter">Přezdívka</label>
         <input id="swal-reg-nickname" class="swal2-input futuristic-swal-input" placeholder="TvojePrezdivka" autocomplete="username">
 
         <label for="swal-reg-email" class="swal-label font-inter">Email</label>
@@ -148,14 +148,14 @@ export const displayRegisterModal = async (): Promise<{
         <label for="swal-reg-password" class="swal-label font-inter">Heslo</label>
         <input id="swal-reg-password" type="password" class="swal2-input futuristic-swal-input" placeholder="Min. 5 znaku, cislo, male pismeno" autocomplete="new-password">
 
-        <label for="swal-reg-confirm-password" class="swal-label font-inter">Potvrzeni hesla</label>
+        <label for="swal-reg-confirm-password" class="swal-label font-inter">Potvrzení hesla</label>
         <input id="swal-reg-confirm-password" type="password" class="swal2-input futuristic-swal-input" placeholder="•••••" autocomplete="new-password">
       </div>
     `,
     focusConfirm: false,
     showCancelButton: true,
     confirmButtonText: 'Zaregistrovat se',
-    cancelButtonText: 'Zrusit',
+    cancelButtonText: 'Zrušit',
     allowOutsideClick: () => !Swal.isLoading(),
     showLoaderOnConfirm: true,
     didOpen: () => {
@@ -238,7 +238,7 @@ export const displayRegisterModal = async (): Promise<{
         return data
       } catch (error) {
         console.error('Register API chyba:', error)
-        Swal.showValidationMessage('Doslo k chybe pri komunikaci se serverem.')
+        Swal.showValidationMessage('Došlo k chybě při komunikaci se serverem.')
         return false
       }
     },

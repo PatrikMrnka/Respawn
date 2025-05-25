@@ -85,7 +85,7 @@ export const getAllUsers = async (): Promise<AdminUserDto[]> => {
     Swal.fire({
       ...(getFuturisticSwalOptions('Chyba API')),
       icon: 'error',
-      text: 'Doslo k chybe pri komunikaci se serverem.',
+      text: 'Došlo k chybě při komunikaci se serverem.',
     });
     return [];
   }
@@ -112,23 +112,23 @@ export const updateUserRoles = async (userId: string, roles: string[]): Promise<
 
     if (!response.ok || !data.isSuccess) {
       Swal.fire({
-        ...(getFuturisticSwalOptions('Chyba aktualizace roli')),
+        ...(getFuturisticSwalOptions('Chyba aktualizace rolí')),
         icon: 'error',
-        text: data.message || 'Nepodarilo se aktualizovat role uzivatele.',
+        text: data.message || 'Nepodařilo se aktualizovat role uživatele.',
       });
       return false;
     }
     Swal.fire({
-      ...(getFuturisticSwalOptions('Uspech')),
+      ...(getFuturisticSwalOptions('Úspěch!')),
       icon: 'success',
-      text: data.message || 'Role uzivatele byly uspesne aktualizovany.',
+      text: data.message || 'Role uživatele byly úspěšně aktualizovaný.',
       timer: 2000,
       showConfirmButton: false,
     });
     return true;
   } catch (error) {
     console.error('updateUserRoles API chyba:', error);
-    Swal.fire(getFuturisticSwalOptions('Chyba API').text = 'Doslo k chybe pri komunikaci se serverem.');
+    Swal.fire(getFuturisticSwalOptions('Chyba API').text = 'Došlo k chybě při komunikaci se serverem.');
     return false;
   }
 };
@@ -143,11 +143,11 @@ export const deleteUser = async (userId: string): Promise<boolean> => {
 
   const result = await Swal.fire({
     ...getFuturisticSwalOptions('Potvrdit smazani'),
-    text: `Opravdu chcete smazat uzivatele s ID: ${userId}? Tato akce je nevratna.`,
+    text: `Opravdu chcete smazat uživatele s ID: ${userId}? Tato akce je nevratná!`,
     icon: 'warning',
     showCancelButton: true,
     confirmButtonText: 'Ano, smazat',
-    cancelButtonText: 'Zrusit',
+    cancelButtonText: 'Zrušit',
   });
 
   if (!result.isConfirmed) {
@@ -163,14 +163,14 @@ export const deleteUser = async (userId: string): Promise<boolean> => {
     });
     const data: ApiResponse = await response.json();
     if (!response.ok || !data.isSuccess) {
-      Swal.fire(getFuturisticSwalOptions('Chyba').text = data.message || 'Nepodarilo se smazat uzivatele.');
+      Swal.fire(getFuturisticSwalOptions('Chyba').text = data.message || 'Nepodařilo se smazat uživatele.');
       return false;
     }
-    Swal.fire(getFuturisticSwalOptions('Uspech').text = data.message || 'Uzivatel byl uspesne smazan.');
+    Swal.fire(getFuturisticSwalOptions('Úspěch!').text = data.message || 'Uzivatel byl uspesne smazan.');
     return true;
   } catch (error) {
     console.error('deleteUser API chyba:', error);
-    Swal.fire(getFuturisticSwalOptions('Chyba API').text = 'Doslo k chybe pri komunikaci se serverem.');
+    Swal.fire(getFuturisticSwalOptions('Chyba API').text = 'Došlo k chybě při komunikaci se serverem.');
     return false;
   }
 };
@@ -227,12 +227,12 @@ export const resetDatabase = async (): Promise<boolean> => {
       Swal.fire(getFuturisticSwalOptions('Chyba').text = data.message || 'Nepodarilo se resetovat databazi.');
       return false;
     }
-    Swal.fire(getFuturisticSwalOptions('Uspech').text = data.message || 'Databaze byla uspesne resetovana.');
+    Swal.fire(getFuturisticSwalOptions('Úspěch!').text = data.message || 'Databaze byla uspesne resetovana.');
     return true;
   } catch (error) {
     Swal.close();
     console.error('resetDatabase API chyba:', error);
-    Swal.fire(getFuturisticSwalOptions('Chyba API').text = 'Doslo k chybe pri komunikaci se serverem.');
+    Swal.fire(getFuturisticSwalOptions('Chyba API').text = 'Došlo k chybě při komunikaci se serverem.');
     return false;
   }
 };
@@ -291,7 +291,7 @@ export const deleteDatabase = async (): Promise<boolean> => {
       Swal.fire(getFuturisticSwalOptions('Chyba').text = data.message || 'Nepodarilo se smazat databazi.');
       return false;
     }
-    Swal.fire(getFuturisticSwalOptions('Uspech').text = data.message || 'Databaze byla uspesne smazana.');
+    Swal.fire(getFuturisticSwalOptions('Úspěch!').text = data.message || 'Databaze byla uspesne smazana.');
     // Po smazání databáze by se měl administrátor pravděpodobně odhlásit nebo aplikace restartovat
     authStore.logout();
     // router.push('/'); // nebo jiná vhodná akce
@@ -299,7 +299,7 @@ export const deleteDatabase = async (): Promise<boolean> => {
   } catch (error) {
     Swal.close();
     console.error('deleteDatabase API chyba:', error);
-    Swal.fire(getFuturisticSwalOptions('Chyba API').text = 'Doslo k chybe pri komunikaci se serverem.');
+    Swal.fire(getFuturisticSwalOptions('Chyba API').text = 'Došlo k chybě při komunikaci se serverem.');
     return false;
   }
 };

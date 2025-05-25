@@ -97,6 +97,15 @@ export interface GameServerDto {
   statusDetails?: string;
 }
 
+export interface GameServerStatusUpdateDtoFE { // Renamed from GameServerStatusUpdateDtoFE
+    gameServerId: string;
+    newOverallStatus: ServerStatus;
+    statusDetails?: string;
+    errorMessage?: string;
+}
+
+
+
 // Props
 const props = defineProps({
   server: {

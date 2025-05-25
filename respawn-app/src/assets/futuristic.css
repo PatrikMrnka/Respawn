@@ -175,9 +175,10 @@
 }
 
 .swal-label {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   color: var(--v-theme-text-secondary);
   display: block;
+  text-align: center;
 }
 
 .futuristic-swal-input {

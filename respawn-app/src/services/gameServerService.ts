@@ -1,6 +1,6 @@
 // File: haha/respawn-app/src/services/gameServerService.ts
+import type { GameServerDto } from '@/components/ServerCard.vue';
 import { useAuthStore } from '@/stores/authStore';
-import type { GameServerDto } from '@/views/ServersView.vue';
 import Swal from 'sweetalert2';
 
 // Frontend DTOs (mirroring backend DTOs)
