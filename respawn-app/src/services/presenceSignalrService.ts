@@ -1,7 +1,7 @@
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
 import { useAuthStore } from '@/stores/authStore'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL // Base URL of your API
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
 class PresenceSignalRService {
   private connection: HubConnection | null = null

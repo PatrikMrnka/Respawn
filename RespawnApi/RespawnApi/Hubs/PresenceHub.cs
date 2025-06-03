@@ -1,12 +1,8 @@
-﻿// Hubs/PresenceHub.cs
-
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using RespawnApi.Application.DTOs.Presence;
-using RespawnApi.Application.Services;
 using RespawnApi.DataAccess.Interfaces;
 using System.Security.Claims;
-using System.Threading.Tasks;
 using RespawnApi.Application.Interfaces;
 
 namespace RespawnApi.Hubs

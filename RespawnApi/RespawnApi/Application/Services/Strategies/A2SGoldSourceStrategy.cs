@@ -157,7 +157,7 @@ namespace RespawnApi.Application.Services.Strategies
                 return new GameServerDetailDto
                 {
                     GameServerId = basicServerInfo.GameServerId,
-                    Name = serverName,
+                    Name = basicServerInfo.Name,
                     GameType = basicServerInfo.GameType,
                     Status = ServerStatus.Online,
                     IpAddress = basicServerInfo.IpAddress,

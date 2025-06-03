@@ -18,7 +18,7 @@ namespace RespawnApi.Application.Interfaces
         /// Asynchronously gets detailed information about a game server.
         /// </summary>
         /// <param name="serverEntity">The game server entity from the database.</param>
-        /// <param name="basicDto">A basic DTO投影 of the server entity, can be used for initial data.</param>
+        /// <param name="basicDto">A basic DTO of the server entity, can be used for initial data.</param>
         /// <returns>
         /// A task that represents the asynchronous operation.
         /// The task result contains a <see cref="GameServerDetailDto"/> with detailed server information,

@@ -3,7 +3,6 @@ using Docker.DotNet.Models;
 using RespawnApi.Application.DTOs.Docker;
 using RespawnApi.Application.Interfaces;
 using RespawnApi.Domain.Entities;
-using RespawnApi.DataAccess.Interfaces;
 using System.Globalization;
 using System.Net.Sockets;
 using System.Text;

@@ -182,8 +182,8 @@ const handleProfileUpdate = async () => {
   if (!valid) {
     Swal.fire({
       icon: 'error',
-      titleText: 'Validation Error',
-      text: 'Please fix the errors in the form.',
+      titleText: 'Chyba',
+      text: 'Opravte prosím chyby ve formuláři.',
       background: '#1A2033',
       color: '#E0E0E0',
       confirmButtonColor: '#00E0FF',
@@ -236,8 +236,8 @@ const handleProfileUpdate = async () => {
     error.value = err.message || 'Server communication error occurred.'
     Swal.fire({
       icon: 'error',
-      titleText: 'Update Error',
-      text: error.value || 'Unknown error',
+      titleText: 'Chyba',
+      text: error.value || 'Neznámá chyba',
       background: '#1A2033',
       color: '#E0E0E0',
       confirmButtonColor: '#00E0FF',

@@ -6,7 +6,7 @@
       </v-card-title>
 
       <v-tabs v-model="activeTab" color="primary" grow class="mb-6 futuristic-tabs">
-        <v-tab value="general">Obecné & Uživatelé</v-tab>
+        <v-tab value="general">Uživatelé</v-tab>
         <v-tab value="docker" v-if="isSuperAdmin">Docker Správa</v-tab>
       </v-tabs>
 
@@ -61,7 +61,7 @@
                             @click="openEditUserModal(user)"
                             class="futuristic-btn-icon mr-1"
                             title="Upravit role"
-                            :disabled="!canEditUser(user)"
+                            :disabled="isCurrentUser(user.id) || !canEditUser(user)"
                             >
                             </v-btn>
                             <v-btn
@@ -112,7 +112,6 @@
                       <td>{{ item.status }}</td>
                       <td>
                         <v-btn :icon="item.state === 'running' ? mdiStop : mdiPlay" :color="item.state === 'running' ? 'warning' : 'success'" variant="text" size="small" @click="item.state === 'running' ? stopDockerContainer(item.id) : startDockerContainer(item.id)" :loading="actionLoading[`container_toggle_${item.id}`]" :title="item.state === 'running' ? 'Zastavit' : 'Spustit'"></v-btn>
-                        <v-btn :icon="mdiFileDocumentOutline" color="info" variant="text" size="small" @click="viewContainerLogs(item.id)" :loading="actionLoading[`container_logs_${item.id}`]" title="Logy"></v-btn>
                         <v-btn :icon="mdiDelete" color="error" variant="text" size="small" @click="deleteDockerContainer(item.id)" :loading="actionLoading[`container_delete_${item.id}`]" title="Smazat"></v-btn>
                       </td></tr>
                      <tr v-if="!dockerLoading.containers && dockerData.containers.length === 0"><td colspan="6" class="text-center">Žádné kontejnery.</td></tr>
@@ -284,7 +283,6 @@ const openEditUserModal = async (user: UserInfo) => {
   const { value: selectedRolesArray, isConfirmed } = await Swal.fire({
   ...getFuturisticSwalBaseOptions(`Upravit role pro ${user.nickname}`),
   html: `<div class="swal-form-container"><p class="swal-label font-inter mb-2">Vyberte role:</p>${rolesCheckboxesHtml}</div>`,
-  customClass: { popup: 'futuristic-swal-popup large-swal', htmlContainer: 'futuristic-swal-html-container font-inter swal-form-container-custom-padding' },
   focusConfirm: false, showCancelButton: true, confirmButtonText: 'Uložit změny', cancelButtonText: 'Zrušit', showLoaderOnConfirm: true,
   preConfirm: () => {
     const newRoles: string[] = [];
@@ -363,7 +361,7 @@ const deleteDockerVolume = async (name: string) => {
   }
   }).then(result => {
   if (result.isConfirmed && result.value) {
-    Swal.fire({...getFuturisticSwalBaseOptions('Smazáno'), text: `Volume ${name} bylo smazáno.`, icon: 'success'});
+    Swal.fire({...getFuturisticSwalBaseOptions('Smazáno'), text: `Volume ${name} bylo smazáno.`, icon: 'success', timer: 1500, showConfirmButton: false});
     fetchVolumes();
   }
   });
@@ -432,34 +430,12 @@ const deleteDockerContainer = (id: string) => {
   },
   }).then(result => {
   if ((result.isConfirmed || result.isDenied) && result.value) { // result.value is the result from deleteContainer
-    Swal.fire({...getFuturisticSwalBaseOptions('Smazáno'), text: `Kontejner ${id.substring(0,12)} byl smazán.`, icon: 'success'});
+    Swal.fire({...getFuturisticSwalBaseOptions('Smazáno'), text: `Kontejner ${id.substring(0,12)} byl smazán.`, icon: 'success', timer: 1500, showConfirmButton: false});
     fetchContainers();
   } else if ((result.isConfirmed || result.isDenied) && !result.value) {
     // Error was already displayed in deleteContainer
   }
   });
-};
-
-/**
- * Displays container logs in a modal dialog
- * @param id Container ID to fetch logs from
- */
-const viewContainerLogs = async (id: string) => {
-  actionLoading[`container_logs_${id}`] = true;
-  try {
-  const logs = await getContainerLogs(id, 500);
-  Swal.fire({
-    ...getFuturisticSwalBaseOptions(`Logy kontejneru ${id.substring(0,12)}`),
-    html: `<pre style="text-align: left;" class="server-logs-pre">${logs.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`,
-    width: '90vw',
-    customClass: { 
-      popup: 'futuristic-swal-popup logs-swal',
-      htmlContainer: 'futuristic-swal-html-container font-inter'
-    },
-    confirmButtonText: 'Zavřít'
-  });
-  } catch (e: any) { Swal.fire({...getFuturisticSwalBaseOptions('Chyba'), text: e.message, icon: 'error'}); }
-  finally { actionLoading[`container_logs_${id}`] = false; }
 };
 
 /**

@@ -19,6 +19,14 @@ namespace RespawnApi.Application.Services.Factories
             _logger = logger;
         }
 
+        /// <summary>
+        /// Retrieves the appropriate <see cref="IGameServerInfoStrategy"/> implementation
+        /// for the specified <see cref="GameType"/>.
+        /// </summary>
+        /// <param name="gameType">The type of game for which to obtain the strategy.</param>
+        /// <returns>
+        /// An instance of <see cref="IGameServerInfoStrategy"/> that supports the specified game type.
+        /// </returns>
         public IGameServerInfoStrategy GetStrategy(GameType gameType)
         {
             _logger.LogDebug("Továrna žádá strategii pro GameType: {GameType}", gameType);

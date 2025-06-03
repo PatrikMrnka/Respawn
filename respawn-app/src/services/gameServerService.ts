@@ -63,11 +63,11 @@ export const getGameServerDetails = async (
   const authStore = useAuthStore()
   // Check if user is authenticated
   if (!authStore.token) {
-    console.error('getGameServerDetails: Authentication token missing.')
+    console.error('getGameServerDetails: Chybí token.')
     Swal.fire(
       getFuturisticSwalOptions(
-        'Authentication Error',
-        'Login required to view server details.',
+        'Error',
+        'Uživatel musí být přihlášen pro zobrazení detailů serveru.',
         'error',
       ),
     )
@@ -88,8 +88,8 @@ export const getGameServerDetails = async (
       authStore.logout()
       Swal.fire(
         getFuturisticSwalOptions(
-          'Authorization Error',
-          'Your session has expired. Please log in again.',
+          'Error',
+          'Vaše relace vypršela. Přihlaste se znovu.',
           'error',
         ),
       )
@@ -98,8 +98,8 @@ export const getGameServerDetails = async (
     if (response.status === 404) {
       Swal.fire(
         getFuturisticSwalOptions(
-          'Server Not Found',
-          'The requested game server was not found.',
+          'Server nenalezen',
+          'Požadovaný herní server nebyl nalezen.',
           'error',
         ),
       )
@@ -119,8 +119,8 @@ export const getGameServerDetails = async (
     console.error(`getGameServerDetails (${serverId}) API error:`, error)
     Swal.fire(
       getFuturisticSwalOptions(
-        'Loading Error',
-        error.message || 'An error occurred while communicating with the server.',
+        'Error',
+        error.message || 'Při komunikaci se serverem došlo k chybě.',
         'error',
       ),
     )

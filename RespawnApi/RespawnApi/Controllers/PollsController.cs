@@ -143,6 +143,7 @@ namespace RespawnApi.Controllers
                 _logger.LogInformation("Broadcasting update for automatically closed poll {PollId}.", poll.PollId);
                 var pollDtoForBroadcast = MapPollToDto(poll, null); // Null user ID for generic broadcast DTO
                 await _pollHubContext.Clients.All.SendAsync("ReceivePollUpdate", pollDtoForBroadcast);
+
             }
 
             return Ok(pollDtoToReturn);
@@ -154,7 +155,7 @@ namespace RespawnApi.Controllers
         /// <param name="createPollDto">The data for the new poll.</param>
         /// <returns>The created poll.</returns>
         [HttpPost]
-        [Authorize(Roles = $"{UserRoles.Administrator},{UserRoles.Spravce}")] // Only Admins/Managers can create
+        [Authorize(Roles = $"{UserRoles.Administrator},{UserRoles.Spravce}")]
         public async Task<ActionResult<PollDto>> CreatePoll(CreatePollDto createPollDto)
         {
             var creatorUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);

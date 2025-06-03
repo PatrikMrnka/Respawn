@@ -88,6 +88,7 @@ namespace RespawnApi.Application.Utils
         /// <param name="offset">The starting offset in the buffer. Will be advanced by this method.</param>
         /// <returns>The 16-bit signed integer read.</returns>
         /// <exception cref="IndexOutOfRangeException">Thrown if the offset is outside the bounds of the buffer or not enough bytes remain.</exception>
+        /// not used
         public static short ReadInt16LittleEndian(byte[] buffer, ref int offset)
         {
             if (buffer == null)

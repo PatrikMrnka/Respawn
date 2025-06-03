@@ -75,7 +75,7 @@ namespace RespawnApi.DataAccess.Repositories
 
             return await _context.GameServers
                 .Where(s => statuses.Contains(s.Status))
-                .AsNoTracking() // Přidáno AsNoTracking
+                .AsNoTracking()
                 .ToListAsync();
         }
     }

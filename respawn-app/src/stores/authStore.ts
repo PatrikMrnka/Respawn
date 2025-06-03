@@ -127,6 +127,9 @@ export const useAuthStore = defineStore('auth', {
         timer: 1500,
         showConfirmButton: false,
       })
+      setTimeout(() => {
+        window.location.href = '/'
+      }, 1000)
     },
     // Actions to check token expiration and handle automatic logout
     checkTokenExpiration() {

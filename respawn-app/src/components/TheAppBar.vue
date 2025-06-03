@@ -8,7 +8,7 @@
     <v-toolbar-title class="font-oxanium app-title">
       <router-link to="/" class="text-decoration-none text-primary">
         <v-icon :icon="mdiRocketLaunchOutline" start></v-icon>
-        Respawn App
+        Respawn
       </router-link>
     </v-toolbar-title>
 

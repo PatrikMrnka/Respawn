@@ -39,19 +39,19 @@
         class="futuristic-list-item"
       ></v-list-item>
 
-      <v-list-item
+      <!-- <v-list-item
         :prepend-icon="mdiChartLine"
         title="Statistiky"
         to="/statistics"
         class="futuristic-list-item"
-      ></v-list-item>
+      ></v-list-item> -->
 
-      <v-list-item
+      <!-- <v-list-item
         :prepend-icon="mdiInformationOutline"
         title="O aplikaci"
         to="/about"
         class="futuristic-list-item"
-      ></v-list-item>
+      ></v-list-item> -->
 
       <v-divider v-if="isUserAdmin || isUserSpravce" class="my-2"></v-divider>
 
@@ -94,14 +94,10 @@
 import { computed } from 'vue'
 import { useAuthStore } from '@/stores/authStore'
 import { UserRoles } from '@/types/enums'
-// import { useDisplay } from 'vuetify'; // Již není potřeba pro closeDrawerOnMobile
 import {
-  mdiRocketLaunchOutline,
   mdiHomeOutline,
   mdiAccountCircleOutline,
   mdiServerNetwork,
-  mdiChartLine,
-  mdiInformationOutline,
   mdiShieldCrownOutline,
   mdiAccountGroupOutline,
   mdiLogout,
@@ -115,7 +111,6 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const authStore = useAuthStore()
-// const { mobile } = useDisplay(); // Již není explicitně potřeba pro zavírání
 
 const emitUpdateModelValue = (value: boolean) => {
   emit('update:modelValue', value)
@@ -129,13 +124,9 @@ const isUserSpravce = computed(() => {
   return authStore.isLoggedIn && authStore.user?.roles?.includes(UserRoles.Spravce)
 })
 
-// Funkce closeDrawerOnMobile byla odstraněna, protože drawer se nyní zavírá pouze přes hamburger ikonu
-// Pokud byste chtěli, aby se na mobilu stále zavíral po kliknutí na odkaz, mohli byste ji vrátit a
-// podmíněně ji volat v @click handleru v-list-item.
-
 const handleLogoutAndCloseDrawer = async () => {
   await authStore.logout()
-  emitUpdateModelValue(false) // Zavřít drawer po odhlášení
+  emitUpdateModelValue(false)
 }
 </script>
 
@@ -177,15 +168,6 @@ const handleLogoutAndCloseDrawer = async () => {
   font-size: 0.98rem;
   font-weight: 500;
 }
-.admin-link .v-list-item-title,
-.admin-link.v-list-item--active .v-list-item-title {
-  /* color: var(--v-theme-warning); */
-}
-.spravce-link .v-list-item-title,
-.spravce-link.v-list-item--active .v-list-item-title {
-  /* color: var(--v-theme-info); */
-}
-
 .v-list {
   flex-grow: 1;
   overflow-y: auto;

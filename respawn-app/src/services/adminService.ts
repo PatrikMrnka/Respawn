@@ -45,8 +45,8 @@ interface ApiResponse {
 export const getAllUsers = async (): Promise<UserInfo[]> => {
   const authStore = useAuthStore()
   if (!authStore.token) {
-    console.error('getAllUsers: Missing authentication token.')
-    Swal.fire((getFuturisticSwalOptions('Error').text = 'Missing authentication token.'))
+    console.error('getAllUsers: Chybí token!')
+    Swal.fire((getFuturisticSwalOptions('Error').text = 'Chybí token!'))
     return []
   }
 
@@ -63,9 +63,9 @@ export const getAllUsers = async (): Promise<UserInfo[]> => {
     if (response.status === 401 || response.status === 403) {
       authStore.logout()
       Swal.fire({
-        ...getFuturisticSwalOptions('Authorization Error'),
+        ...getFuturisticSwalOptions('Autorizační Error'),
         icon: 'error',
-        text: 'You do not have permission to access this resource or your session has expired.',
+        text: 'Nemáte oprávnění k přístupu k tomuto zdroji nebo vaše relace vypršela.',
       })
       return []
     }
@@ -79,7 +79,7 @@ export const getAllUsers = async (): Promise<UserInfo[]> => {
       Swal.fire({
         ...getFuturisticSwalOptions('Error'),
         icon: 'error',
-        text: errorData.message || 'Failed to load users.',
+        text: errorData.message || 'Nepodařilo se načíst uživatele.',
       })
       return []
     }
@@ -90,7 +90,7 @@ export const getAllUsers = async (): Promise<UserInfo[]> => {
     Swal.fire({
       ...getFuturisticSwalOptions('API Error'),
       icon: 'error',
-      text: 'An error occurred while communicating with the server.',
+      text: 'Při komunikaci se serverem došlo k chybě..',
     })
     return []
   }
@@ -105,7 +105,7 @@ export const getAllUsers = async (): Promise<UserInfo[]> => {
 export const updateUserRoles = async (userId: string, roles: string[]): Promise<boolean> => {
   const authStore = useAuthStore()
   if (!authStore.token) {
-    Swal.fire((getFuturisticSwalOptions('Error').text = 'Missing authentication token.'))
+    Swal.fire((getFuturisticSwalOptions('Error').text = 'Chybí token!'))
     return false
   }
 
@@ -123,16 +123,16 @@ export const updateUserRoles = async (userId: string, roles: string[]): Promise<
 
     if (!response.ok || !data.isSuccess) {
       Swal.fire({
-        ...getFuturisticSwalOptions('Role Update Error'),
+        ...getFuturisticSwalOptions('Úprava role Error'),
         icon: 'error',
-        text: data.message || 'Failed to update user roles.',
+        text: data.message || 'Nepodařilo se aktualizovat uživatelské role.',
       })
       return false
     }
     Swal.fire({
-      ...getFuturisticSwalOptions('Success!'),
+      ...getFuturisticSwalOptions('Úspěch!'),
       icon: 'success',
-      text: data.message || 'User roles were successfully updated.',
+      text: data.message || 'Uživatelské role byly úspěšně aktualizovány.',
       timer: 2000,
       showConfirmButton: false,
     })
@@ -141,7 +141,7 @@ export const updateUserRoles = async (userId: string, roles: string[]): Promise<
     console.error('updateUserRoles API error:', error)
     Swal.fire(
       (getFuturisticSwalOptions('API Error').text =
-        'An error occurred while communicating with the server.'),
+        'Při komunikaci se serverem došlo k chybě.'),
     )
     return false
   }
@@ -155,21 +155,7 @@ export const updateUserRoles = async (userId: string, roles: string[]): Promise<
 export const deleteUser = async (userId: string): Promise<boolean> => {
   const authStore = useAuthStore()
   if (!authStore.token) {
-    Swal.fire((getFuturisticSwalOptions('Error').text = 'Missing authentication token.'))
-    return false
-  }
-
-  // Confirm deletion with user
-  const result = await Swal.fire({
-    ...getFuturisticSwalOptions('Confirm Deletion'),
-    text: `Are you sure you want to delete the user with ID: ${userId}? This action cannot be undone!`,
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonText: 'Yes, delete',
-    cancelButtonText: 'Cancel',
-  })
-
-  if (!result.isConfirmed) {
+    Swal.fire((getFuturisticSwalOptions('Error').text = 'Chybí token.'))
     return false
   }
 
@@ -182,19 +168,19 @@ export const deleteUser = async (userId: string): Promise<boolean> => {
     })
     const data: ApiResponse = await response.json()
     if (!response.ok || !data.isSuccess) {
-      Swal.fire((getFuturisticSwalOptions('Error').text = data.message || 'Failed to delete user.'))
+      Swal.fire((getFuturisticSwalOptions('Error').text = data.message || 'Nepodařilo se odstranit uživatele.'))
       return false
     }
     Swal.fire(
-      (getFuturisticSwalOptions('Success!').text =
-        data.message || 'User was successfully deleted.'),
+      (getFuturisticSwalOptions('Úspěch!').text =
+        data.message || 'Uživatel byl úspěšně odstraněn.'),
     )
     return true
   } catch (error) {
     console.error('deleteUser API error:', error)
     Swal.fire(
       (getFuturisticSwalOptions('API Error').text =
-        'An error occurred while communicating with the server.'),
+        'Při komunikaci se serverem došlo k chybě.'),
     )
     return false
   }

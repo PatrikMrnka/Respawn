@@ -1,4 +1,3 @@
-// src/services/signalrService.ts
 import {
   HubConnection,
   HubConnectionBuilder,

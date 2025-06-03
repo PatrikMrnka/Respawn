@@ -1,5 +1,4 @@
-// File: haha/respawn-app/src/composables/useGameDisplayHelpers.ts
-import { GameType, ServerStatus } from '@/types/enums' // Make sure the path to enums is correct
+import { GameType, ServerStatus } from '@/types/enums'
 import {
   mdiServer,
   mdiAlphaTBoxOutline,

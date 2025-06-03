@@ -155,9 +155,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, onBeforeUnmount, watch, nextTick } from 'vue';
+import { ref, onMounted, computed, onBeforeUnmount, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { getGameServerDetails, type GameServerDetailDtoFE, type PlayerDetailDtoFE } from '@/services/gameServerService';
+import { getGameServerDetails, type GameServerDetailDtoFE } from '@/services/gameServerService';
 import { useAuthStore } from '@/stores/authStore';
 import Swal, { type SweetAlertOptions } from 'sweetalert2';
 import { signalRService } from '@/services/signalrService';

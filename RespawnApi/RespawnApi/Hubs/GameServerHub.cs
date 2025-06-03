@@ -8,6 +8,9 @@ namespace RespawnApi.Hubs
     /// </summary>
     public class GameServerHub : Hub
     {
+        // !!!! methods aren´t used in gameserverhub instance right now, they are here just for example
+
+
         /// <summary>
         /// Broadcasts an update about a game server to all connected clients.
         /// </summary>

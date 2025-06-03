@@ -216,7 +216,7 @@ const handleToggleServerState = async (server: GameServerDto) => {
   if (!server.containerId) {
     Swal.fire({
       ...getFuturisticSwalBaseOptionsForView('Error', createIconHtml(mdiAlertOctagon)),
-      html: '<div class="font-inter">Server does not have a container ID assigned.</div>',
+      html: '<div class="font-inter">Server nemá přiřazené ID kontejneru.</div>',
       icon: 'error',
     })
     return
@@ -232,16 +232,16 @@ const handleToggleServerState = async (server: GameServerDto) => {
       headers: { Authorization: `Bearer ${authStore.token}` },
     })
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({ message: 'Unknown error.' }))
-      throw new Error(errData.message || `Error when ${action} server.`)
+      const errData = await response.json().catch(() => ({ message: 'Neznámá chyba.' }))
+      throw new Error(errData.message || `Chyba při ${action} server.`)
     }
     // Status updates via SignalR, this is just confirmation of command sent
     Swal.fire({
       ...getFuturisticSwalBaseOptionsForView(
-        'Command sent',
+        'Požadavek odeslán!',
         createIconHtml(mdiRefresh, 24, '#00E0FF'),
       ),
-      html: `<div class="font-inter">Request to ${action} server <strong>${server.name}</strong> has been sent.<br>Status will update soon.</div>`,
+      html: `<div class="font-inter">Požadavek ${action} na server <strong>${server.name}</strong> byl poslán.<br>Status se brzy aktualizuje.</div>`,
       icon: 'info',
       timer: 2500,
       showConfirmButton: false,
@@ -266,11 +266,11 @@ const handleConfirmDeleteServer = (server: GameServerDto) => {
       `Delete server ${server.name}?`,
       createIconHtml(mdiAlertOctagon, 24, '#FF5252'),
     ),
-    html: `<div class="font-inter">Are you sure you want to delete server <strong>${server.name}</strong>?<br>This action will also delete its Docker container and data!</div>`,
+    html: `<div class="font-inter">Jste si jisti, že chcete odstranit server <strong>${server.name}</strong>?<br>Tato akce také odstraní jeho kontejner Docker a data!</div>`,
     iconHtml: createIconHtml(mdiAlertOctagon, 48, '#FF5252'),
     showCancelButton: true,
-    confirmButtonText: 'Yes, delete it',
-    cancelButtonText: 'Cancel',
+    confirmButtonText: 'Ano, smazat',
+    cancelButtonText: 'Zrušit',
     showLoaderOnConfirm: true,
     preConfirm: async () => {
       actionLoadingStates[actionKey] = { ...actionLoadingStates[actionKey], delete: true }
@@ -283,8 +283,8 @@ const handleConfirmDeleteServer = (server: GameServerDto) => {
         if (!response.ok) {
           const errData = await response
             .json()
-            .catch(() => ({ message: 'Unknown error when deleting.' }))
-          throw new Error(errData.message || `Error ${response.status} when deleting server.`)
+            .catch(() => ({ message: 'Neznámá chyba při mazání.' }))
+          throw new Error(errData.message || `Error: ${response.status} při mazání serveru..`)
         }
         return true // Success
       } catch (err: any) {
@@ -300,10 +300,10 @@ const handleConfirmDeleteServer = (server: GameServerDto) => {
       // No need to manually remove from `servers.value`, SignalR will handle it
       Swal.fire({
         ...getFuturisticSwalBaseOptionsForView(
-          'Deleted!',
+          'Smazáno!',
           createIconHtml(mdiCheckCircle, 24, '#00E0FF'),
         ),
-        html: `<div class="font-inter">Server <strong>${server.name}</strong> has been successfully deleted.</div>`,
+        html: `<div class="font-inter">Server <strong>${server.name}</strong> byl úspěšně odstraněn.</div>`,
         icon: 'success',
         timer: 2500,
         showConfirmButton: false,
@@ -322,8 +322,8 @@ const handleNavigateToDetail = (server: GameServerDto) => {
     router.push({ name: 'server-detail', params: { id: server.gameServerId } })
   } else if (!server.containerId) {
     Swal.fire({
-      ...getFuturisticSwalBaseOptionsForView('Information'),
-      html: '<div class="font-inter">Server details are not available until its container is created.</div>',
+      ...getFuturisticSwalBaseOptionsForView('Informace'),
+      html: '<div class="font-inter">Podrobnosti o serveru nejsou k dispozici, dokud není vytvořen jeho kontejner..</div>',
       icon: 'info',
     })
   }
@@ -442,160 +442,5 @@ onBeforeUnmount(() => {
   color: var(--v-theme-primary);
 }
 
-:deep(.futuristic-swal-popup) {
-  border-radius: 15px !important;
-  border: 1px solid var(--v-theme-primary-lighten-1) !important;
-  box-shadow:
-    0 0 25px rgba(var(--v-theme-primary-rgb), 0.3),
-    0 0 10px rgba(var(--v-theme-secondary-rgb), 0.2) inset !important;
-  overflow: hidden !important;
-}
-:deep(.futuristic-swal-popup.animated-border::before) {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  background: linear-gradient(
-    45deg,
-    var(--v-theme-primary),
-    var(--v-theme-secondary),
-    var(--v-theme-primary)
-  );
-  background-size: 400% 400%;
-  z-index: -1;
-  filter: blur(5px);
-  animation: glowingBorder 10s linear infinite;
-  border-radius: 17px;
-  opacity: 0.7;
-}
-@keyframes glowingBorder {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
 
-:deep(.futuristic-swal-title) {
-  color: var(--v-theme-primary) !important;
-  font-size: 1.8em !important;
-  text-shadow: 0 0 5px rgba(var(--v-theme-primary-rgb), 0.7);
-  padding-bottom: 15px !important;
-  border-bottom: 1px solid rgba(var(--v-theme-primary-rgb), 0.2);
-  margin-bottom: 20px !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-:deep(.futuristic-swal-title .swal2-icon-content) {
-  margin-right: 15px !important;
-}
-:deep(.futuristic-swal-html-container) {
-  color: #b0c4de !important;
-  line-height: 1.6 !important;
-}
-:deep(.swal-form-container-custom-padding) {
-  padding: 0 1em 1em 1em !important;
-}
-
-:deep(.futuristic-form .futuristic-input-group) {
-  margin-bottom: 20px;
-  text-align: left;
-}
-:deep(.futuristic-form .futuristic-label) {
-  display: flex;
-  align-items: center;
-  color: var(--v-theme-secondary);
-  margin-bottom: 8px;
-  font-size: 0.95rem;
-  font-weight: 500;
-}
-:deep(.futuristic-input),
-:deep(.futuristic-select) {
-  background-color: rgba(var(--v-theme-surface-rgb), 0.1) !important;
-  border: 1px solid rgba(var(--v-theme-primary-rgb), 0.3) !important;
-  color: #e0e0e0 !important;
-  border-radius: 8px !important;
-  padding: 12px 15px !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
-  transition:
-    border-color 0.3s ease,
-    box-shadow 0.3s ease !important;
-  font-family: 'Inter', sans-serif;
-}
-:deep(.futuristic-input::placeholder) {
-  color: rgba(var(--v-theme-text-secondary-rgb), 0.7) !important;
-}
-:deep(.futuristic-input:focus),
-:deep(.futuristic-select:focus) {
-  border-color: var(--v-theme-primary) !important;
-  box-shadow: 0 0 10px rgba(var(--v-theme-primary-rgb), 0.5) !important;
-  outline: none !important;
-}
-:deep(.futuristic-select-option) {
-  background-color: #0a1428;
-  color: #e0e0e0;
-}
-:deep(.futuristic-select-option:hover) {
-  background-color: var(--v-theme-primary-darken-1);
-}
-
-:deep(.futuristic-swal-confirm-button),
-:deep(.futuristic-swal-cancel-button) {
-  padding: 10px 25px !important;
-  font-size: 1rem !important;
-  border-radius: 8px !important;
-  transition: all 0.3s ease !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.5px;
-  margin: 5px !important;
-}
-:deep(.futuristic-glow-cyan:hover) {
-  box-shadow:
-    0 0 15px 3px var(--v-theme-primary-rgb),
-    0 0 5px 1px var(--v-theme-primary-rgb) inset !important;
-  transform: translateY(-2px);
-}
-:deep(.futuristic-glow-red:hover) {
-  box-shadow:
-    0 0 15px 3px var(--v-theme-error-rgb),
-    0 0 5px 1px var(--v-theme-error-rgb) inset !important;
-  transform: translateY(-2px);
-}
-:deep(.swal2-validation-message) {
-  background-color: rgba(var(--v-theme-error-rgb), 0.1) !important;
-  color: var(--v-theme-error) !important;
-  border: 1px solid var(--v-theme-error) !important;
-  border-radius: 6px;
-  padding: 8px 12px !important;
-  margin-top: 10px !important;
-}
-:deep(.large-swal) {
-  width: 650px !important;
-  max-width: 90vw;
-}
-:deep(.logs-swal .swal2-html-container) {
-  max-width: 100%;
-}
-:deep(.server-logs-pre) {
-  text-align: left;
-  max-height: 70vh;
-  overflow-y: auto;
-  background-color: #010409;
-  color: #c9d1d9;
-  padding: 15px;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  white-space: pre-wrap;
-  word-break: break-all;
-  border: 1px solid rgba(var(--v-theme-primary-rgb), 0.3);
-  font-family: 'Roboto Mono', monospace;
-}
 </style>

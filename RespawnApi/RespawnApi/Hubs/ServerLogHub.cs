@@ -33,6 +33,9 @@ namespace RespawnApi.Hubs
             _hubContext = hubContext;
         }
 
+        // !!!! methods aren´t used in serverloghub instance right now, they are here just for example
+        // except onconnected, disconnected
+
         /// <summary>
         /// Starts watching logs for a specific game server.
         /// </summary>

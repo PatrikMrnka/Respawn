@@ -8,6 +8,11 @@ namespace RespawnApi.Hubs
     /// </summary>
     public class PollHub : Hub
     {
+        // !!!! methods aren´t used in pollhub instance right now, they are here just for example
+
+
+
+
         /// <summary>
         /// Broadcasts an updated poll to all connected clients.
         /// </summary>

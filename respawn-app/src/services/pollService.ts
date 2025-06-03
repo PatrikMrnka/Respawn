@@ -113,13 +113,13 @@ export const getAllPolls = async (): Promise<Poll[]> => {
       const errorData = await response
         .json()
         .catch(() => ({ message: `Server error: ${response.statusText}` }))
-      throw new Error(errorData.message || 'Failed to load polls.')
+      throw new Error(errorData.message || 'Nepodařilo se načíst ankety.')
     }
     return await response.json()
   } catch (error: any) {
     console.error('getAllPolls API error:', error)
     Swal.fire({
-      ...getFuturisticSwalOptions('Error loading polls'),
+      ...getFuturisticSwalOptions('Error načítání anket'),
       text: error.message,
       icon: 'error',
     })
@@ -166,12 +166,12 @@ export const createPoll = async (pollData: CreatePollDto): Promise<Poll | null> 
       body: JSON.stringify(pollData),
     })
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Failed to create poll.' }))
-      throw new Error(errorData.message || 'Failed to create poll.')
+      const errorData = await response.json().catch(() => ({ message: 'Nepodařilo se vytvořit anketu.' }))
+      throw new Error(errorData.message || 'Nepodařilo se vytvořit anketu.')
     }
     Swal.fire({
-      ...getFuturisticSwalOptions('Success!'),
-      text: 'Poll was successfully created.',
+      ...getFuturisticSwalOptions('Úspěch!'),
+      text: 'Anketa byla úspěšně vytvořena.',
       icon: 'success',
       timer: 2000,
       showConfirmButton: false,
@@ -180,7 +180,7 @@ export const createPoll = async (pollData: CreatePollDto): Promise<Poll | null> 
   } catch (error: any) {
     console.error('createPoll API error:', error)
     Swal.fire({
-      ...getFuturisticSwalOptions('Error creating poll'),
+      ...getFuturisticSwalOptions('Error vytváření ankety'),
       text: error.message,
       icon: 'error',
     })
@@ -207,12 +207,12 @@ export const updatePoll = async (pollId: string, pollData: UpdatePollDto): Promi
       body: JSON.stringify(pollData),
     })
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Failed to update poll.' }))
-      throw new Error(errorData.message || 'Failed to update poll.')
+      const errorData = await response.json().catch(() => ({ message: 'Nepodařilo se aktualizovat anketu.' }))
+      throw new Error(errorData.message || 'Nepodařilo se aktualizovat anketu.')
     }
     Swal.fire({
-      ...getFuturisticSwalOptions('Success!'),
-      text: 'Poll was successfully updated.',
+      ...getFuturisticSwalOptions('Úspěch!'),
+      text: 'Anketa byla úspěšně aktualizována.',
       icon: 'success',
       timer: 2000,
       showConfirmButton: false,
@@ -221,7 +221,7 @@ export const updatePoll = async (pollId: string, pollData: UpdatePollDto): Promi
   } catch (error: any) {
     console.error(`updatePoll (${pollId}) API error:`, error)
     Swal.fire({
-      ...getFuturisticSwalOptions('Error updating poll'),
+      ...getFuturisticSwalOptions('Error upravování ankety'),
       text: error.message,
       icon: 'error',
     })
@@ -243,12 +243,12 @@ export const deletePoll = async (pollId: string): Promise<boolean> => {
       headers: { Authorization: `Bearer ${authStore.token}` },
     })
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Failed to delete poll.' }))
-      throw new Error(errorData.message || 'Failed to delete poll.')
+      const errorData = await response.json().catch(() => ({ message: 'Nepodařilo se odstranit anketu.' }))
+      throw new Error(errorData.message || 'Nepodařilo se odstranit anketu.')
     }
     Swal.fire({
-      ...getFuturisticSwalOptions('Deleted!'),
-      text: 'Poll was successfully deleted.',
+      ...getFuturisticSwalOptions('Smazáno!'),
+      text: 'Anketa byla úspěšně smazána.',
       icon: 'success',
       timer: 2000,
       showConfirmButton: false,
@@ -257,7 +257,7 @@ export const deletePoll = async (pollId: string): Promise<boolean> => {
   } catch (error: any) {
     console.error(`deletePoll (${pollId}) API error:`, error)
     Swal.fire({
-      ...getFuturisticSwalOptions('Error deleting poll'),
+      ...getFuturisticSwalOptions('Error mazání ankety'),
       text: error.message,
       icon: 'error',
     })
@@ -284,12 +284,12 @@ export const submitVote = async (pollId: string, voteData: SubmitVoteDto): Promi
       body: JSON.stringify(voteData),
     })
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Failed to submit vote.' }))
-      throw new Error(errorData.message || 'Failed to submit vote.')
+      const errorData = await response.json().catch(() => ({ message: 'Chyba při hlasování.' }))
+      throw new Error(errorData.message || 'Chyba při hlasování.')
     }
     Swal.fire({
-      ...getFuturisticSwalOptions('Vote recorded!'),
-      text: 'Your vote was successfully submitted.',
+      ...getFuturisticSwalOptions('Hlas zaznamenán!'),
+      text: 'Váš hlas byl úspěšně zaznamenán.',
       icon: 'success',
       timer: 2000,
       showConfirmButton: false,
@@ -297,7 +297,7 @@ export const submitVote = async (pollId: string, voteData: SubmitVoteDto): Promi
     return await response.json()
   } catch (error: any) {
     console.error(`submitVote (${pollId}) API error:`, error)
-    Swal.fire({ ...getFuturisticSwalOptions('Error voting'), text: error.message, icon: 'error' })
+    Swal.fire({ ...getFuturisticSwalOptions('Error hlasování'), text: error.message, icon: 'error' })
     return null
   }
 }
